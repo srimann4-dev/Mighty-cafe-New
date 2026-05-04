@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Mighty Cafe MVP",
+    "slug": "mighty-cafe-mvp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mightycafe.mvp"
+    },
+    "android": {
+      "package": "com.mightycafe.mvp",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

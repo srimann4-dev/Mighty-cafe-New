@@ -1,0 +1,52 @@
+import { MD3LightTheme, type MD3Theme } from 'react-native-paper';
+
+export const colors = {
+  primary: '#2ECC71',
+  primaryDark: '#27AE60',
+  primaryLight: '#E8FAF0',
+  secondary: '#6C63FF',
+  background: '#F5F5F5',
+  card: '#FFFFFF',
+  cardAlt: '#F5F5F5',
+  text: '#1A1A1A',
+  textSoft: '#1A1A1A',
+  muted: '#888888',
+  border: '#EBEBEB',
+  dark: '#F5F5F5',
+  accent: '#6C63FF',
+  accentBlue: '#6C63FF',
+  accentPurple: '#6C63FF',
+  accentMuted: '#F0EEFF',
+  accentSoft: '#E8FAF0',
+  success: '#2ECC71',
+  danger: '#E74C3C',
+  warning: '#F39C12',
+  chartColors: ['#2ECC71', '#6C63FF', '#F39C12', '#E74C3C', '#3498DB', '#1ABC9C'],
+};
+
+export const appTheme: MD3Theme = {
+  ...MD3LightTheme,
+  dark: false,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: colors.primary,
+    secondary: colors.secondary,
+    background: colors.background,
+    surface: colors.card,
+    surfaceVariant: colors.cardAlt,
+    outline: colors.border,
+    error: colors.danger,
+    onSurface: colors.text,
+    onBackground: colors.text,
+    onPrimary: '#FFFFFF',
+    elevation: {
+      level0: 'transparent',
+      level1: colors.card,
+      level2: colors.cardAlt,
+      level3: '#F0F0F0',
+      level4: '#EBEBEB',
+      level5: '#E5E5E5',
+    },
+  },
+  roundness: 20,
+};
