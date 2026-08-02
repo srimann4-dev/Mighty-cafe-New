@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Modal, Portal, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '@/theme';
@@ -24,37 +24,47 @@ export function OpeningBalanceModal({ visible, onConfirm, onSkip }: Props) {
   return (
     <Portal>
       <Modal visible={visible} dismissable={false} contentContainerStyle={styles.overlay}>
-        <View style={styles.container}>
-          <View style={styles.iconRow}>
-            <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="cash-register" size={32} color={colors.primary} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scroll}
+          >
+            <View style={styles.container}>
+              <View style={styles.iconRow}>
+                <View style={styles.iconBox}>
+                  <MaterialCommunityIcons name="cash-register" size={32} color={colors.primary} />
+                </View>
+              </View>
+              <Text variant="headlineSmall" style={styles.title}>Good morning!</Text>
+              <Text variant="bodyMedium" style={styles.subtitle}>
+                Set the opening cash balance for today's drawer.
+              </Text>
+              <TextInput
+                label="Opening Cash (₹)"
+                mode="outlined"
+                keyboardType="numeric"
+                value={value}
+                onChangeText={setValue}
+                style={inputStyle}
+                textColor={colors.text}
+                theme={inputTheme}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={handleConfirm}
+              />
+              <View style={styles.actions}>
+                <Button mode="text" onPress={onSkip} textColor={colors.muted}>
+                  Skip for now
+                </Button>
+                <Button mode="contained" onPress={handleConfirm} disabled={!value || isNaN(parseFloat(value))}>
+                  Set Balance
+                </Button>
+              </View>
             </View>
-          </View>
-          <Text variant="headlineSmall" style={styles.title}>Good morning!</Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            Set the opening cash balance for today's drawer.
-          </Text>
-          <TextInput
-            label="Opening Cash (₹)"
-            mode="outlined"
-            keyboardType="numeric"
-            value={value}
-            onChangeText={setValue}
-            style={inputStyle}
-            textColor={colors.text}
-            theme={inputTheme}
-            returnKeyType="done"
-            blurOnSubmit
-          />
-          <View style={styles.actions}>
-            <Button mode="text" onPress={onSkip} textColor={colors.muted}>
-              Skip for now
-            </Button>
-            <Button mode="contained" onPress={handleConfirm} disabled={!value || isNaN(parseFloat(value))}>
-              Set Balance
-            </Button>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </Portal>
   );
@@ -62,6 +72,7 @@ export function OpeningBalanceModal({ visible, onConfirm, onSkip }: Props) {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
+  scroll: { paddingBottom: 200 },
   container: {
     backgroundColor: colors.card,
     borderRadius: 28,

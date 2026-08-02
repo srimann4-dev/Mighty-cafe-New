@@ -1,6 +1,7 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme';
 
 interface ScreenShellProps extends PropsWithChildren {
@@ -10,27 +11,36 @@ interface ScreenShellProps extends PropsWithChildren {
 }
 
 export function ScreenShell({ children, title, subtitle, headerRight }: ScreenShellProps) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
     >
-      <View style={styles.header}>
-        {/* Title always gets full width */}
-        <Text variant="headlineMedium" style={styles.title}>{title}</Text>
-        {subtitle ? <Text variant="bodyMedium" style={styles.subtitle}>{subtitle}</Text> : null}
-        {/* Buttons sit below on their own row, left-aligned */}
-        {headerRight ? <View style={styles.headerActions}>{headerRight}</View> : null}
-      </View>
-      {children}
-    </ScrollView>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: 32 + insets.bottom + 72 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <View style={styles.header}>
+          <Text variant="headlineMedium" style={styles.title}>{title}</Text>
+          {subtitle ? <Text variant="bodyMedium" style={styles.subtitle}>{subtitle}</Text> : null}
+          {headerRight ? <View style={styles.headerActions}>{headerRight}</View> : null}
+        </View>
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, gap: 16, paddingBottom: 32 },
+  content: { padding: 16, gap: 16 },
   header: {
     backgroundColor: colors.card,
     borderRadius: 24,

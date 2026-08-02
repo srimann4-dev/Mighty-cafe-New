@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Button, Divider, Modal, Portal, SegmentedButtons, Surface, Switch, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -44,10 +44,12 @@ function Sheet({ visible, onDismiss, children }: { visible: boolean; onDismiss: 
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalOverlay}>
-      <Surface style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]} elevation={0}>
-        <View style={styles.sheetHandle} />
-        {children}
-      </Surface>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Surface style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]} elevation={0}>
+          <View style={styles.sheetHandle} />
+          {children}
+        </Surface>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1010,13 +1012,13 @@ const styles = StyleSheet.create({
   importProductText: { color: colors.primary, fontSize: 15, fontWeight: '800' },
 
   // Modal positioned at top so keyboard slides under it
-  modalOverlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 48, paddingHorizontal: 16 },
   sheet: {
     backgroundColor: colors.card,
     borderRadius: 32,
     padding: 24, gap: 18,
     borderWidth: 1, borderColor: colors.border,
-    maxHeight: '94%',
+    maxHeight: '90%',
   },
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 4 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },

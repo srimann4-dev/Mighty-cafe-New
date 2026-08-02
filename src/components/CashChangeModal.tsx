@@ -44,8 +44,8 @@ export function CashChangeModal({ visible, saleTotal, onConfirm, onDismiss }: Pr
   return (
     <Portal>
       <Modal visible={visible} onDismiss={handleDismiss} contentContainerStyle={styles.overlay}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardWrap}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardWrap}>
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
 

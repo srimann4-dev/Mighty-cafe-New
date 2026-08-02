@@ -64,7 +64,7 @@ export function ExpensePurchaseScreen({ navigation, route }: Props) {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.flex}>
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.text, fontWeight: '800' },
   headerSub: { color: colors.muted },
 
-  content: { padding: 16, gap: 16, paddingBottom: 24 },
+  content: { padding: 16, gap: 16, paddingBottom: 120 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
 
   itemList: { gap: 10 },

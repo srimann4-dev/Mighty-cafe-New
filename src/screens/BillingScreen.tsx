@@ -198,7 +198,7 @@ export function BillingScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.screen}>
           <CashChangeModal visible={!!pendingCashSaleId} saleTotal={pendingCashTotal} onConfirm={handleCashConfirm} onDismiss={dismissCashChange} />

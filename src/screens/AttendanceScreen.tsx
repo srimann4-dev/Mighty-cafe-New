@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
@@ -281,52 +281,54 @@ export function AttendanceScreen() {
       {/* ── PIN Modal ── */}
       <Portal>
         <Modal visible={pinModalVisible} onDismiss={() => setPinModalVisible(false)} contentContainerStyle={styles.pinOverlay}>
-          <Surface style={styles.pinCard} elevation={0}>
-            <View style={styles.pinIconRow}>
-              <View style={styles.pinIconBox}>
-                <MaterialCommunityIcons name="fingerprint" size={36} color={colors.primary} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Surface style={styles.pinCard} elevation={0}>
+              <View style={styles.pinIconRow}>
+                <View style={styles.pinIconBox}>
+                  <MaterialCommunityIcons name="fingerprint" size={36} color={colors.primary} />
+                </View>
               </View>
-            </View>
-            <Text variant="titleLarge" style={styles.pinCardTitle}>{pinTarget?.name}</Text>
-            <Text variant="bodyMedium" style={styles.pinCardSub}>Enter your 4-digit attendance PIN</Text>
+              <Text variant="titleLarge" style={styles.pinCardTitle}>{pinTarget?.name}</Text>
+              <Text variant="bodyMedium" style={styles.pinCardSub}>Enter your 4-digit attendance PIN</Text>
 
-            <TextInput
-              label="Attendance PIN"
-              mode="outlined"
-              secureTextEntry
-              keyboardType="numeric"
-              maxLength={4}
-              value={pinInput}
-              onChangeText={(v) => { setPinInput(v.replace(/\D/g, '').slice(0, 4)); setPinError(''); }}
-              style={{ backgroundColor: '#F5F5F5' }}
-              textColor="#1A1A1A"
-              theme={{ colors: { primary: colors.primary, outline: '#EBEBEB', onSurfaceVariant: '#888' } }}
-              returnKeyType="done"
-              onSubmitEditing={handlePinSubmit}
-              autoFocus
-            />
+              <TextInput
+                label="Attendance PIN"
+                mode="outlined"
+                secureTextEntry
+                keyboardType="numeric"
+                maxLength={4}
+                value={pinInput}
+                onChangeText={(v) => { setPinInput(v.replace(/\D/g, '').slice(0, 4)); setPinError(''); }}
+                style={{ backgroundColor: '#F5F5F5' }}
+                textColor="#1A1A1A"
+                theme={{ colors: { primary: colors.primary, outline: '#EBEBEB', onSurfaceVariant: '#888' } }}
+                returnKeyType="done"
+                onSubmitEditing={handlePinSubmit}
+                autoFocus
+              />
 
-            {pinError ? (
-              <View style={styles.pinErrorRow}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.danger} />
-                <Text style={styles.pinErrorText}>{pinError}</Text>
+              {pinError ? (
+                <View style={styles.pinErrorRow}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.danger} />
+                  <Text style={styles.pinErrorText}>{pinError}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.pinActions}>
+                <Pressable style={styles.pinCancelBtn} onPress={() => setPinModalVisible(false)}>
+                  <Text style={styles.pinCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.pinConfirmBtn, pinInput.length !== 4 && styles.pinConfirmBtnDisabled]}
+                  onPress={handlePinSubmit}
+                  disabled={pinInput.length !== 4}
+                >
+                  <MaterialCommunityIcons name="fingerprint" size={18} color="#fff" />
+                  <Text style={styles.pinConfirmText}>Verify</Text>
+                </Pressable>
               </View>
-            ) : null}
-
-            <View style={styles.pinActions}>
-              <Pressable style={styles.pinCancelBtn} onPress={() => setPinModalVisible(false)}>
-                <Text style={styles.pinCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.pinConfirmBtn, pinInput.length !== 4 && styles.pinConfirmBtnDisabled]}
-                onPress={handlePinSubmit}
-                disabled={pinInput.length !== 4}
-              >
-                <MaterialCommunityIcons name="fingerprint" size={18} color="#fff" />
-                <Text style={styles.pinConfirmText}>Verify</Text>
-              </Pressable>
-            </View>
-          </Surface>
+            </Surface>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Button, FAB, Modal, Portal, SegmentedButtons, Surface, Switch, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -432,69 +432,75 @@ export function InventoryScreen() {
 
         {/* Stock Modal */}
         <Modal visible={stockModalVisible} onDismiss={() => setStockModalVisible(false)} contentContainerStyle={styles.fullScreen}>
-          <View style={styles.sheetInner}>
-            <View style={styles.handle} />
-            <Text variant="titleLarge" style={styles.modalTitle}>{stockMode === 'add' ? 'Add Stock' : 'Adjust Stock'}</Text>
-            <Text variant="bodyMedium" style={styles.muted}>{selectedItem?.name} ({selectedItem?.unit})</Text>
-            <SegmentedButtons value={stockMode} onValueChange={(v) => setStockMode(v as StockMode)} buttons={[{ value: 'add', label: 'Add Stock' }, { value: 'adjust', label: 'Adjust' }]} theme={{ colors: { secondaryContainer: colors.primary + '33', onSecondaryContainer: colors.primary, outline: colors.border } }} />
-            <TextInput label="Quantity" value={quantityValue} onChangeText={setQuantityValue} keyboardType="numeric" mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
-            {stockMode === 'adjust' && <TextInput label="Note" value={note} onChangeText={setNote} mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />}
-            <View style={styles.modalActions}>
-              <Button onPress={() => setStockModalVisible(false)} textColor={colors.muted}>Cancel</Button>
-              <Button mode="contained" onPress={handleStockSubmit}>Save</Button>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.sheetInner}>
+              <View style={styles.handle} />
+              <Text variant="titleLarge" style={styles.modalTitle}>{stockMode === 'add' ? 'Add Stock' : 'Adjust Stock'}</Text>
+              <Text variant="bodyMedium" style={styles.muted}>{selectedItem?.name} ({selectedItem?.unit})</Text>
+              <SegmentedButtons value={stockMode} onValueChange={(v) => setStockMode(v as StockMode)} buttons={[{ value: 'add', label: 'Add Stock' }, { value: 'adjust', label: 'Adjust' }]} theme={{ colors: { secondaryContainer: colors.primary + '33', onSecondaryContainer: colors.primary, outline: colors.border } }} />
+              <TextInput label="Quantity" value={quantityValue} onChangeText={setQuantityValue} keyboardType="numeric" mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
+              {stockMode === 'adjust' && <TextInput label="Note" value={note} onChangeText={setNote} mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />}
+              <View style={styles.modalActions}>
+                <Button onPress={() => setStockModalVisible(false)} textColor={colors.muted}>Cancel</Button>
+                <Button mode="contained" onPress={handleStockSubmit}>Save</Button>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Item Edit Modal */}
         <Modal visible={itemModalVisible} onDismiss={() => setItemModalVisible(false)} contentContainerStyle={styles.fullScreen}>
-          <View style={styles.sheetInner}>
-            <View style={styles.handle} />
-            <Text variant="titleLarge" style={styles.modalTitle}>{itemDraft.id ? 'Edit Item' : 'Add Item'}</Text>
-            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.formScroll}>
-              <TextInput label="Item Name" mode="outlined" value={itemDraft.name} onChangeText={(v) => setItemDraft((c) => ({ ...c, name: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
-              <TextInput label="Current Quantity" mode="outlined" keyboardType="numeric" value={itemDraft.quantity} onChangeText={(v) => setItemDraft((c) => ({ ...c, quantity: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
-              <TextInput label="Unit (ml, g, pcs…)" mode="outlined" value={itemDraft.unit} onChangeText={(v) => setItemDraft((c) => ({ ...c, unit: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
-              <View style={styles.barcodeRow}>
-                <TextInput label="Barcode" mode="outlined" value={itemDraft.barcode} onChangeText={(v) => setItemDraft((c) => ({ ...c, barcode: v }))} style={[inputStyle, styles.barcodeInput]} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
-                <Button mode="outlined" icon="barcode-scan" onPress={() => setScannerVisible(true)} style={styles.scanBtn} contentStyle={styles.scanBtnContent} textColor={colors.muted}>Scan</Button>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKav}>
+            <View style={styles.sheetInner}>
+              <View style={styles.handle} />
+              <Text variant="titleLarge" style={styles.modalTitle}>{itemDraft.id ? 'Edit Item' : 'Add Item'}</Text>
+              <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} style={styles.formScroll}>
+                <TextInput label="Item Name" mode="outlined" value={itemDraft.name} onChangeText={(v) => setItemDraft((c) => ({ ...c, name: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
+                <TextInput label="Current Quantity" mode="outlined" keyboardType="numeric" value={itemDraft.quantity} onChangeText={(v) => setItemDraft((c) => ({ ...c, quantity: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
+                <TextInput label="Unit (ml, g, pcs…)" mode="outlined" value={itemDraft.unit} onChangeText={(v) => setItemDraft((c) => ({ ...c, unit: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
+                <View style={styles.barcodeRow}>
+                  <TextInput label="Barcode" mode="outlined" value={itemDraft.barcode} onChangeText={(v) => setItemDraft((c) => ({ ...c, barcode: v }))} style={[inputStyle, styles.barcodeInput]} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
+                  <Button mode="outlined" icon="barcode-scan" onPress={() => setScannerVisible(true)} style={styles.scanBtn} contentStyle={styles.scanBtnContent} textColor={colors.muted}>Scan</Button>
+                </View>
+                <TextInput label="Low Stock Threshold" mode="outlined" keyboardType="numeric" value={itemDraft.lowStockThreshold} onChangeText={(v) => setItemDraft((c) => ({ ...c, lowStockThreshold: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
+              </ScrollView>
+              <View style={styles.modalActions}>
+                <Button onPress={() => setItemModalVisible(false)} textColor={colors.muted}>Cancel</Button>
+                <Button mode="contained" onPress={handleItemSubmit}>Save</Button>
               </View>
-              <TextInput label="Low Stock Threshold" mode="outlined" keyboardType="numeric" value={itemDraft.lowStockThreshold} onChangeText={(v) => setItemDraft((c) => ({ ...c, lowStockThreshold: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Button onPress={() => setItemModalVisible(false)} textColor={colors.muted}>Cancel</Button>
-              <Button mode="contained" onPress={handleItemSubmit}>Save</Button>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Link Modal */}
         <Modal visible={linkModalVisible} onDismiss={() => setLinkModalVisible(false)} contentContainerStyle={styles.fullScreen}>
-          <View style={styles.sheetInner}>
-            <View style={styles.handle} />
-            <Text variant="titleLarge" style={styles.modalTitle}>Link to Menu Items</Text>
-            <Text variant="bodySmall" style={styles.muted}>{selectedItem?.name} will be deducted when these are sold.</Text>
-            <ScrollView style={styles.linkScroll} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              {menuItems.map((m) => (
-                <Surface key={m.id} style={styles.linkRow} elevation={0}>
-                  <View style={styles.linkHeader}>
-                    <View style={styles.infoBlock}>
-                      <Text variant="titleSmall" style={styles.itemName}>{m.name}</Text>
-                      <Text variant="bodySmall" style={styles.muted}>{m.category}</Text>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKav}>
+            <View style={styles.sheetInner}>
+              <View style={styles.handle} />
+              <Text variant="titleLarge" style={styles.modalTitle}>Link to Menu Items</Text>
+              <Text variant="bodySmall" style={styles.muted}>{selectedItem?.name} will be deducted when these are sold.</Text>
+              <ScrollView style={styles.linkScroll} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+                {menuItems.map((m) => (
+                  <Surface key={m.id} style={styles.linkRow} elevation={0}>
+                    <View style={styles.linkHeader}>
+                      <View style={styles.infoBlock}>
+                        <Text variant="titleSmall" style={styles.itemName}>{m.name}</Text>
+                        <Text variant="bodySmall" style={styles.muted}>{m.category}</Text>
+                      </View>
+                      <Switch value={enabledLinks[m.id] ?? false} onValueChange={(v) => setEnabledLinks((c) => ({ ...c, [m.id]: v }))} color={colors.primary} />
                     </View>
-                    <Switch value={enabledLinks[m.id] ?? false} onValueChange={(v) => setEnabledLinks((c) => ({ ...c, [m.id]: v }))} color={colors.primary} />
-                  </View>
-                  {enabledLinks[m.id] && (
-                    <TextInput label={`${selectedItem?.unit ?? 'qty'} to deduct per ${m.name}`} mode="outlined" keyboardType="numeric" value={linkDraft[m.id] ?? ''} onChangeText={(v) => setLinkDraft((c) => ({ ...c, [m.id]: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} dense returnKeyType="done" blurOnSubmit />
-                  )}
-                </Surface>
-              ))}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Button onPress={() => setLinkModalVisible(false)} textColor={colors.muted}>Cancel</Button>
-              <Button mode="contained" onPress={handleLinkSubmit}>Save Links</Button>
+                    {enabledLinks[m.id] && (
+                      <TextInput label={`${selectedItem?.unit ?? 'qty'} to deduct per ${m.name}`} mode="outlined" keyboardType="numeric" value={linkDraft[m.id] ?? ''} onChangeText={(v) => setLinkDraft((c) => ({ ...c, [m.id]: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} dense returnKeyType="done" blurOnSubmit />
+                    )}
+                  </Surface>
+                ))}
+              </ScrollView>
+              <View style={styles.modalActions}>
+                <Button onPress={() => setLinkModalVisible(false)} textColor={colors.muted}>Cancel</Button>
+                <Button mode="contained" onPress={handleLinkSubmit}>Save Links</Button>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
 
@@ -522,6 +528,7 @@ const styles = StyleSheet.create({
   // Bottom sheet pattern — fullScreen contentContainerStyle fills the whole overlay,
   // positioned at top so keyboard slides under the modal
   fullScreen: { flex: 1, justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
+  modalKav: { maxHeight: '92%' },
   sheetInner: {
     backgroundColor: colors.card,
     borderRadius: 28,

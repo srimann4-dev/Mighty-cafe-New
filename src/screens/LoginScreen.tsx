@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Button, Surface, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -74,112 +74,120 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   }
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.screen}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Hero */}
-      <View style={styles.hero}>
-        <View style={styles.logoRing}>
-          <MaterialCommunityIcons name="coffee" size={40} color={colors.primary} />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Hero */}
+        <View style={styles.hero}>
+          <View style={styles.logoRing}>
+            <MaterialCommunityIcons name="coffee" size={40} color={colors.primary} />
+          </View>
+          <Text variant="displaySmall" style={styles.heroTitle}>Mighty Cafe</Text>
+          <Text variant="bodyLarge" style={styles.heroCopy}>
+            Smart billing · Stock tracking · Daily reports
+          </Text>
+          <View style={styles.pillRow}>
+            {['Offline Ready', 'Fast Billing', 'Auto Stock'].map((label) => (
+              <View key={label} style={styles.pill}>
+                <Text variant="labelSmall" style={styles.pillText}>{label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
-        <Text variant="displaySmall" style={styles.heroTitle}>Mighty Cafe</Text>
-        <Text variant="bodyLarge" style={styles.heroCopy}>
-          Smart billing · Stock tracking · Daily reports
-        </Text>
-        <View style={styles.pillRow}>
-          {['Offline Ready', 'Fast Billing', 'Auto Stock'].map((label) => (
-            <View key={label} style={styles.pill}>
-              <Text variant="labelSmall" style={styles.pillText}>{label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
 
-      {/* Sign in card */}
-      <Surface style={styles.card} elevation={0}>
-        <Text variant="titleLarge" style={styles.cardTitle}>Who's at the counter?</Text>
-        <Text variant="bodyMedium" style={styles.cardSub}>Select your profile to continue</Text>
+        {/* Sign in card */}
+        <Surface style={styles.card} elevation={0}>
+          <Text variant="titleLarge" style={styles.cardTitle}>Who's at the counter?</Text>
+          <Text variant="bodyMedium" style={styles.cardSub}>Select your profile to continue</Text>
 
-        <View style={styles.staffGrid}>
-          {staff.map((member) => {
-            const isSelected = member.id === selectedStaffId;
-            return (
-              <Surface
-                key={member.id}
-                style={[styles.staffCard, isSelected && styles.staffCardActive]}
-                elevation={0}
-                onTouchEnd={() => setSelectedStaffId(member.id)}
-              >
-                <View style={[styles.avatarRing, isSelected && styles.avatarRingActive]}>
-                  <MaterialCommunityIcons
-                    name={member.role === 'Admin' ? 'shield-account' : 'account'}
-                    size={26}
-                    color={isSelected ? colors.primary : colors.muted}
-                  />
-                </View>
-                <Text variant="titleSmall" style={[styles.staffName, isSelected && styles.staffNameActive]}>
-                  {member.name}
-                </Text>
-                <Text variant="labelSmall" style={styles.staffRole}>{member.role}</Text>
-                {isSelected && (
-                  <View style={styles.checkBadge}>
-                    <MaterialCommunityIcons name="check-circle" size={16} color={colors.primary} />
+          <View style={styles.staffGrid}>
+            {staff.map((member) => {
+              const isSelected = member.id === selectedStaffId;
+              return (
+                <Surface
+                  key={member.id}
+                  style={[styles.staffCard, isSelected && styles.staffCardActive]}
+                  elevation={0}
+                  onTouchEnd={() => setSelectedStaffId(member.id)}
+                >
+                  <View style={[styles.avatarRing, isSelected && styles.avatarRingActive]}>
+                    <MaterialCommunityIcons
+                      name={member.role === 'Admin' ? 'shield-account' : 'account'}
+                      size={26}
+                      color={isSelected ? colors.primary : colors.muted}
+                    />
                   </View>
-                )}
-              </Surface>
-            );
-          })}
-        </View>
+                  <Text variant="titleSmall" style={[styles.staffName, isSelected && styles.staffNameActive]}>
+                    {member.name}
+                  </Text>
+                  <Text variant="labelSmall" style={styles.staffRole}>{member.role}</Text>
+                  {isSelected && (
+                    <View style={styles.checkBadge}>
+                      <MaterialCommunityIcons name="check-circle" size={16} color={colors.primary} />
+                    </View>
+                  )}
+                </Surface>
+              );
+            })}
+          </View>
 
-        {selectedStaff?.role === 'Admin' && (
-          <TextInput
-            label="Admin PIN"
-            mode="outlined"
-            secureTextEntry
-            keyboardType="numeric"
-            value={adminPin}
-            onChangeText={setAdminPin}
-            style={styles.pinInput}
-            outlineStyle={styles.pinOutline}
-            textColor={colors.text}
-            theme={{ colors: { onSurfaceVariant: colors.muted } }}
-          />
-        )}
+          {selectedStaff?.role === 'Admin' && (
+            <TextInput
+              label="Admin PIN"
+              mode="outlined"
+              secureTextEntry
+              keyboardType="numeric"
+              value={adminPin}
+              onChangeText={setAdminPin}
+              style={styles.pinInput}
+              outlineStyle={styles.pinOutline}
+              textColor={colors.text}
+              theme={{ colors: { onSurfaceVariant: colors.muted } }}
+            />
+          )}
 
-        {selectedStaff?.role === 'Staff' && selectedStaff?.attendancePin ? (
-          <TextInput
-            label={`${selectedStaff.name}'s PIN`}
-            mode="outlined"
-            secureTextEntry
-            keyboardType="numeric"
-            value={staffPin}
-            onChangeText={setStaffPin}
-            style={styles.pinInput}
-            outlineStyle={styles.pinOutline}
-            textColor={colors.text}
-            theme={{ colors: { onSurfaceVariant: colors.muted } }}
-          />
-        ) : null}
+          {selectedStaff?.role === 'Staff' && selectedStaff?.attendancePin ? (
+            <TextInput
+              label={`${selectedStaff.name}'s PIN`}
+              mode="outlined"
+              secureTextEntry
+              keyboardType="numeric"
+              value={staffPin}
+              onChangeText={setStaffPin}
+              style={styles.pinInput}
+              outlineStyle={styles.pinOutline}
+              textColor={colors.text}
+              theme={{ colors: { onSurfaceVariant: colors.muted } }}
+            />
+          ) : null}
 
-        <Button
-          mode="contained"
-          onPress={handleContinue}
-          contentStyle={styles.ctaContent}
-          style={styles.ctaBtn}
-          labelStyle={styles.ctaLabel}
-        >
-          Enter Register
-        </Button>
-      </Surface>
-    </ScrollView>
+          <Button
+            mode="contained"
+            onPress={handleContinue}
+            contentStyle={styles.ctaContent}
+            style={styles.ctaBtn}
+            labelStyle={styles.ctaLabel}
+          >
+            Enter Register
+          </Button>
+        </Surface>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, gap: 24, paddingBottom: 40 },
+  flex: { flex: 1 },
+  content: { padding: 20, gap: 24, paddingBottom: 80 },
   hero: { alignItems: 'center', paddingTop: 40, gap: 12 },
   logoRing: {
     width: 80, height: 80, borderRadius: 40,

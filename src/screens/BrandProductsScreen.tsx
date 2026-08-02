@@ -260,16 +260,21 @@ export function BrandProductsScreen({ route, navigation }: Props) {
         onDismiss={() => setScannerVisible(false)}
       />
 
-      {/* Add/Edit form — bottom sheet */}
+      {/* Add/Edit form — top sheet so keyboard never covers inputs */}
       {formVisible && (
         <View style={styles.formOverlay}>
           <Pressable style={styles.formBackdrop} onPress={() => setFormVisible(false)} />
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.formKav}>
             <View style={[styles.formSheet, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.formHandle} />
               <Text style={styles.formTitle}>{editingId ? 'Edit Item' : `Add to ${brandName}`}</Text>
 
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.formScroll}
+              >
                 <TextInput label="Item Name" mode="outlined" value={form.name} onChangeText={(v) => setForm((c) => ({ ...c, name: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" autoFocus />
                 <TextInput label="Selling Price (₹)" mode="outlined" keyboardType="numeric" value={form.price} onChangeText={(v) => setForm((c) => ({ ...c, price: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
                 <TextInput label="Purchase / Cost Price (₹)" mode="outlined" keyboardType="numeric" value={form.purchaseCost} onChangeText={(v) => setForm((c) => ({ ...c, purchaseCost: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
@@ -331,10 +336,12 @@ const styles = StyleSheet.create({
   deleteSelectedBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.danger, borderRadius: 14, paddingVertical: 15 },
   deleteSelectedBtnDisabled: { opacity: 0.4 },
   addBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  // Form sheet
-  formOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
+  // Form sheet — top-anchored so soft keyboard never covers fields
+  formOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start', paddingTop: 48 },
   formBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  formSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
+  formKav: { maxHeight: '92%', marginHorizontal: 12 },
+  formSheet: { backgroundColor: '#fff', borderRadius: 24, padding: 20, gap: 12, maxHeight: '100%', borderWidth: 1, borderColor: '#EBEBEB' },
+  formScroll: { gap: 12, paddingBottom: 12 },
   formHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#EBEBEB', alignSelf: 'center', marginBottom: 4 },
   formTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
   barcodeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

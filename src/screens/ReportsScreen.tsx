@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Dimensions, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Button, Chip, Divider, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -431,65 +431,74 @@ export function ReportsScreen() {
         )}
       </SectionCard>
 
-      {/* Reset PIN Modal */}
+      {/* Reset PIN Modal — top-anchored so keyboard never covers the PIN field */}
       <Portal>
         <Modal
           visible={resetModalVisible}
           onDismiss={() => setResetModalVisible(false)}
           contentContainerStyle={styles.modalOverlay}
         >
-          <Surface style={styles.modalCard} elevation={0}>
-            <View style={styles.resetIconRow}>
-              <View style={[styles.resetIconBox, resetMode === 'all' && styles.resetIconBoxDanger]}>
-                <MaterialCommunityIcons
-                  name={resetMode === 'today' ? 'delete-clock-outline' : 'delete-sweep-outline'}
-                  size={32}
-                  color={resetMode === 'today' ? colors.warning : colors.danger}
-                />
-              </View>
-            </View>
-            <Text variant="titleLarge" style={styles.resetTitle}>
-              {resetMode === 'today' ? "Reset Today's Data" : 'Full Reset'}
-            </Text>
-            <Text variant="bodyMedium" style={styles.resetSubtitle}>
-              {resetMode === 'today'
-                ? "Permanently deletes today's sales, expenses and cash drawer. Cannot be undone."
-                : 'Permanently deletes ALL sales, ALL expenses, and resets ALL inventory quantities to zero. Cannot be undone.'}
-            </Text>
-            {resetMode === 'all' && (
-              <View style={styles.resetWarningBox}>
-                <MaterialCommunityIcons name="alert" size={16} color={colors.danger} />
-                <Text variant="labelMedium" style={styles.resetWarningText}>
-                  Inventory counts, all expenses and full sales history will be wiped.
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKav}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScroll}
+            >
+              <Surface style={styles.modalCard} elevation={0}>
+                <View style={styles.resetIconRow}>
+                  <View style={[styles.resetIconBox, resetMode === 'all' && styles.resetIconBoxDanger]}>
+                    <MaterialCommunityIcons
+                      name={resetMode === 'today' ? 'delete-clock-outline' : 'delete-sweep-outline'}
+                      size={32}
+                      color={resetMode === 'today' ? colors.warning : colors.danger}
+                    />
+                  </View>
+                </View>
+                <Text variant="titleLarge" style={styles.resetTitle}>
+                  {resetMode === 'today' ? "Reset Today's Data" : 'Full Reset'}
                 </Text>
-              </View>
-            )}
-            <TextInput
-              label="Admin PIN"
-              mode="outlined"
-              secureTextEntry
-              keyboardType="numeric"
-              value={resetPin}
-              onChangeText={setResetPin}
-              style={inputStyle}
-              textColor={colors.text}
-              theme={inputTheme}
-              returnKeyType="done"
-              blurOnSubmit
-            />
-            <View style={styles.modalActions}>
-              <Button onPress={() => setResetModalVisible(false)} textColor={colors.muted}>Cancel</Button>
-              <Button
-                mode="contained"
-                buttonColor={resetMode === 'today' ? colors.warning : colors.danger}
-                loading={isResetting}
-                onPress={handleReset}
-                disabled={!resetPin}
-              >
-                {resetMode === 'today' ? 'Reset Today' : 'Full Reset'}
-              </Button>
-            </View>
-          </Surface>
+                <Text variant="bodyMedium" style={styles.resetSubtitle}>
+                  {resetMode === 'today'
+                    ? "Permanently deletes today's sales, expenses and cash drawer. Cannot be undone."
+                    : 'Permanently deletes ALL sales, ALL expenses, and resets ALL inventory quantities to zero. Cannot be undone.'}
+                </Text>
+                {resetMode === 'all' && (
+                  <View style={styles.resetWarningBox}>
+                    <MaterialCommunityIcons name="alert" size={16} color={colors.danger} />
+                    <Text variant="labelMedium" style={styles.resetWarningText}>
+                      Inventory counts, all expenses and full sales history will be wiped.
+                    </Text>
+                  </View>
+                )}
+                <TextInput
+                  label="Admin PIN"
+                  mode="outlined"
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={resetPin}
+                  onChangeText={setResetPin}
+                  style={inputStyle}
+                  textColor={colors.text}
+                  theme={inputTheme}
+                  returnKeyType="done"
+                  blurOnSubmit
+                />
+                <View style={styles.modalActions}>
+                  <Button onPress={() => setResetModalVisible(false)} textColor={colors.muted}>Cancel</Button>
+                  <Button
+                    mode="contained"
+                    buttonColor={resetMode === 'today' ? colors.warning : colors.danger}
+                    loading={isResetting}
+                    onPress={handleReset}
+                    disabled={!resetPin}
+                  >
+                    {resetMode === 'today' ? 'Reset Today' : 'Full Reset'}
+                  </Button>
+                </View>
+              </Surface>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
     </ScreenShell>
@@ -538,8 +547,10 @@ const styles = StyleSheet.create({
   },
   lowQty: { color: colors.danger, fontWeight: '700' },
   muted: { color: colors.muted },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border },
+  modalOverlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 48, paddingHorizontal: 16 },
+  modalKav: { flex: 1 },
+  modalScroll: { flexGrow: 1, paddingBottom: 240 },
+  modalCard: { backgroundColor: colors.card, borderRadius: 28, padding: 24, gap: 16, borderWidth: 1, borderColor: colors.border },
   resetIconRow: { alignItems: 'center' },
   resetIconBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: colors.warning + '22', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.warning + '44' },
   resetIconBoxDanger: { backgroundColor: colors.danger + '22', borderColor: colors.danger + '44' },

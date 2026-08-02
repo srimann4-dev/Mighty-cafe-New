@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Keyboard, Modal as RNModal, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal as RNModal, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from '@react-navigation/native';
 import { Text, TextInput } from 'react-native-paper';
@@ -200,69 +200,73 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
 
       {/* ── Purchase popup modal ── */}
       <RNModal visible={purchaseModalVisible} transparent animationType="slide" onRequestClose={() => setPurchaseModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setPurchaseModalVisible(false)}>
-          <View style={styles.purchaseOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.purchaseCard}>
-                <View style={styles.purchaseHandle} />
-                <View style={styles.purchaseHeader}>
-                  <View style={styles.purchaseIconBox}>
-                    <MaterialCommunityIcons name="food-variant" size={22} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.purchaseTitle}>{selectedItem?.label}</Text>
-                    <Text style={styles.purchaseSub}>Enter quantity purchased and amount paid</Text>
-                  </View>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableWithoutFeedback onPress={() => setPurchaseModalVisible(false)}>
+            <View style={styles.purchaseOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.purchaseCard}>
+                  <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+                    <View style={styles.purchaseHandle} />
+                    <View style={styles.purchaseHeader}>
+                      <View style={styles.purchaseIconBox}>
+                        <MaterialCommunityIcons name="food-variant" size={22} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.purchaseTitle}>{selectedItem?.label}</Text>
+                        <Text style={styles.purchaseSub}>Enter quantity purchased and amount paid</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.qtyRow}>
+                      <TextInput
+                        label="Quantity" mode="outlined" keyboardType="numeric"
+                        value={qty} onChangeText={setQty}
+                        style={[inputStyle, styles.qtyInput]} textColor={colors.text} theme={inputTheme}
+                        returnKeyType="next" autoFocus
+                      />
+                      <View style={styles.unitWrapper}>
+                        <Text style={styles.unitLabel}>Unit</Text>
+                        <Pressable style={styles.unitDropdownBtn} onPress={() => { Keyboard.dismiss(); setUnitDropdownOpen((v) => !v); }}>
+                          <Text style={styles.unitDropdownValue}>{selectedUnitOption.label}</Text>
+                          <MaterialCommunityIcons name={unitDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    {showConversion && (
+                      <View style={styles.conversionBox}>
+                        <MaterialCommunityIcons name="swap-horizontal" size={14} color={colors.primary} />
+                        <Text style={styles.conversionText}>
+                          {parsedQty} {unit} = <Text style={styles.conversionHighlight}>{convertedQty} {baseUnit}</Text> added to inventory
+                        </Text>
+                      </View>
+                    )}
+
+                    <TextInput
+                      label="₹ Amount paid" mode="outlined" keyboardType="numeric"
+                      value={amount} onChangeText={setAmount}
+                      style={inputStyle} textColor={colors.text} theme={inputTheme}
+                      returnKeyType="done" blurOnSubmit
+                    />
+
+                    <View style={styles.purchaseActions}>
+                      <Pressable style={styles.cancelBtn} onPress={() => setPurchaseModalVisible(false)}>
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.saveBtn, (!canSave || saving) && styles.saveBtnDisabled]}
+                        onPress={handleSave} disabled={!canSave || saving}
+                      >
+                        <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" />
+                        <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Purchase'}</Text>
+                      </Pressable>
+                    </View>
+                  </ScrollView>
                 </View>
-
-                <View style={styles.qtyRow}>
-                  <TextInput
-                    label="Quantity" mode="outlined" keyboardType="numeric"
-                    value={qty} onChangeText={setQty}
-                    style={[inputStyle, styles.qtyInput]} textColor={colors.text} theme={inputTheme}
-                    returnKeyType="next" autoFocus
-                  />
-                  <View style={styles.unitWrapper}>
-                    <Text style={styles.unitLabel}>Unit</Text>
-                    <Pressable style={styles.unitDropdownBtn} onPress={() => { Keyboard.dismiss(); setUnitDropdownOpen((v) => !v); }}>
-                      <Text style={styles.unitDropdownValue}>{selectedUnitOption.label}</Text>
-                      <MaterialCommunityIcons name={unitDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-                    </Pressable>
-                  </View>
-                </View>
-
-                {showConversion && (
-                  <View style={styles.conversionBox}>
-                    <MaterialCommunityIcons name="swap-horizontal" size={14} color={colors.primary} />
-                    <Text style={styles.conversionText}>
-                      {parsedQty} {unit} = <Text style={styles.conversionHighlight}>{convertedQty} {baseUnit}</Text> added to inventory
-                    </Text>
-                  </View>
-                )}
-
-                <TextInput
-                  label="₹ Amount paid" mode="outlined" keyboardType="numeric"
-                  value={amount} onChangeText={setAmount}
-                  style={inputStyle} textColor={colors.text} theme={inputTheme}
-                  returnKeyType="done" blurOnSubmit
-                />
-
-                <View style={styles.purchaseActions}>
-                  <Pressable style={styles.cancelBtn} onPress={() => setPurchaseModalVisible(false)}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.saveBtn, (!canSave || saving) && styles.saveBtnDisabled]}
-                    onPress={handleSave} disabled={!canSave || saving}
-                  >
-                    <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" />
-                    <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Purchase'}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </RNModal>
 
       {/* Unit picker modal */}
@@ -290,29 +294,33 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
 
       {/* New ingredient modal */}
       <RNModal visible={newIngModalVisible} transparent animationType="slide" onRequestClose={() => setNewIngModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setNewIngModalVisible(false)}>
-          <View style={styles.newIngOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.newIngCard}>
-                <View style={styles.newIngHandle} />
-                <Text style={styles.newIngTitle}>Add New Ingredient</Text>
-                <Text style={styles.newIngSub}>Creates a new item in your inventory with 0 stock.</Text>
-                <TextInput label="Ingredient Name" mode="outlined" value={newIngName} onChangeText={setNewIngName} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" autoFocus />
-                <TextInput label="Unit (ml, g, pcs, kg…)" mode="outlined" value={newIngUnit} onChangeText={setNewIngUnit} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
-                <TextInput label="Low Stock Threshold (optional)" mode="outlined" keyboardType="numeric" value={newIngThreshold} onChangeText={setNewIngThreshold} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
-                <View style={styles.newIngActions}>
-                  <Pressable style={styles.newIngCancel} onPress={() => setNewIngModalVisible(false)}>
-                    <Text style={styles.newIngCancelText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable style={[styles.newIngSave, savingNewIng && { opacity: 0.5 }]} onPress={handleSaveNewIngredient} disabled={savingNewIng}>
-                    <MaterialCommunityIcons name="check" size={18} color="#fff" />
-                    <Text style={styles.newIngSaveText}>{savingNewIng ? 'Saving...' : 'Add to Inventory'}</Text>
-                  </Pressable>
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableWithoutFeedback onPress={() => setNewIngModalVisible(false)}>
+            <View style={styles.newIngOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.newIngCard}>
+                  <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+                    <View style={styles.newIngHandle} />
+                    <Text style={styles.newIngTitle}>Add New Ingredient</Text>
+                    <Text style={styles.newIngSub}>Creates a new item in your inventory with 0 stock.</Text>
+                    <TextInput label="Ingredient Name" mode="outlined" value={newIngName} onChangeText={setNewIngName} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" autoFocus />
+                    <TextInput label="Unit (ml, g, pcs, kg…)" mode="outlined" value={newIngUnit} onChangeText={setNewIngUnit} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
+                    <TextInput label="Low Stock Threshold (optional)" mode="outlined" keyboardType="numeric" value={newIngThreshold} onChangeText={setNewIngThreshold} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="done" blurOnSubmit />
+                    <View style={styles.newIngActions}>
+                      <Pressable style={styles.newIngCancel} onPress={() => setNewIngModalVisible(false)}>
+                        <Text style={styles.newIngCancelText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable style={[styles.newIngSave, savingNewIng && { opacity: 0.5 }]} onPress={handleSaveNewIngredient} disabled={savingNewIng}>
+                        <MaterialCommunityIcons name="check" size={18} color="#fff" />
+                        <Text style={styles.newIngSaveText}>{savingNewIng ? 'Saving...' : 'Add to Inventory'}</Text>
+                      </Pressable>
+                    </View>
+                  </ScrollView>
                 </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </RNModal>
     </View>
   );
@@ -320,6 +328,7 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 14, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: 4 },
   headerText: { flex: 1, gap: 2 },
@@ -338,10 +347,11 @@ const styles = StyleSheet.create({
   customCount: { fontSize: 12, color: colors.muted },
   addNewIngBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 4 },
   addNewIngText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  modalScroll: { gap: 14, paddingBottom: 8 },
 
   // Purchase popup
   purchaseOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
-  purchaseCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, gap: 14, borderWidth: 1, borderColor: '#EBEBEB', maxHeight: '80%' },
+  purchaseCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#EBEBEB', maxHeight: '85%' },
   purchaseHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#EBEBEB', alignSelf: 'center', marginBottom: 4 },
   purchaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   purchaseIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
@@ -378,7 +388,7 @@ const styles = StyleSheet.create({
 
   // New ingredient modal
   newIngOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
-  newIngCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, gap: 12, borderWidth: 1, borderColor: '#EBEBEB', maxHeight: '70%' },
+  newIngCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#EBEBEB', maxHeight: '85%' },
   newIngHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#EBEBEB', alignSelf: 'center', marginBottom: 4 },
   newIngTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
   newIngSub: { fontSize: 13, color: colors.muted },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, FAB, Modal, Portal, RadioButton, Surface, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/EmptyState';
@@ -79,54 +79,56 @@ export function StaffManagementScreen() {
 
       <Portal>
         <Modal visible={dialogVisible} onDismiss={() => setDialogVisible(false)} contentContainerStyle={styles.fullScreen}>
-          <View style={styles.sheetInner}>
-            <View style={styles.handle} />
-            <Text variant="titleLarge" style={styles.modalTitle}>{draft.id ? 'Edit Staff' : 'Add Staff'}</Text>
-            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <TextInput label="Name" value={draft.name} onChangeText={(v) => setDraft((c) => ({ ...c, name: v }))} mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} />
-              <TextInput label="Phone (optional)" value={draft.phone} onChangeText={(v) => setDraft((c) => ({ ...c, phone: v }))} mode="outlined" keyboardType="phone-pad" style={inputStyle} textColor={colors.text} theme={inputTheme} />
-              <View style={styles.pinSection}>
-                <View style={styles.pinHeader}>
-                  <MaterialCommunityIcons name="fingerprint" size={18} color={colors.primary} />
-                  <Text variant="titleSmall" style={styles.pinTitle}>Attendance PIN</Text>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.sheetInner}>
+              <View style={styles.handle} />
+              <Text variant="titleLarge" style={styles.modalTitle}>{draft.id ? 'Edit Staff' : 'Add Staff'}</Text>
+              <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+                <TextInput label="Name" value={draft.name} onChangeText={(v) => setDraft((c) => ({ ...c, name: v }))} mode="outlined" style={inputStyle} textColor={colors.text} theme={inputTheme} />
+                <TextInput label="Phone (optional)" value={draft.phone} onChangeText={(v) => setDraft((c) => ({ ...c, phone: v }))} mode="outlined" keyboardType="phone-pad" style={inputStyle} textColor={colors.text} theme={inputTheme} />
+                <View style={styles.pinSection}>
+                  <View style={styles.pinHeader}>
+                    <MaterialCommunityIcons name="fingerprint" size={18} color={colors.primary} />
+                    <Text variant="titleSmall" style={styles.pinTitle}>Attendance PIN</Text>
+                  </View>
+                  <Text variant="bodySmall" style={styles.pinHint}>
+                    Staff will enter this 4-digit PIN when marking attendance. Fingerprint confirms their identity.
+                  </Text>
+                  <TextInput
+                    label="4-digit PIN"
+                    value={draft.attendancePin}
+                    onChangeText={(v) => setDraft((c) => ({ ...c, attendancePin: v.replace(/\D/g, '').slice(0, 4) }))}
+                    mode="outlined"
+                    keyboardType="numeric"
+                    secureTextEntry
+                    maxLength={4}
+                    style={inputStyle}
+                    textColor={colors.text}
+                    theme={inputTheme}
+                    returnKeyType="done"
+                    blurOnSubmit
+                  />
                 </View>
-                <Text variant="bodySmall" style={styles.pinHint}>
-                  Staff will enter this 4-digit PIN when marking attendance. Fingerprint confirms their identity.
-                </Text>
-                <TextInput
-                  label="4-digit PIN"
-                  value={draft.attendancePin}
-                  onChangeText={(v) => setDraft((c) => ({ ...c, attendancePin: v.replace(/\D/g, '').slice(0, 4) }))}
-                  mode="outlined"
-                  keyboardType="numeric"
-                  secureTextEntry
-                  maxLength={4}
-                  style={inputStyle}
-                  textColor={colors.text}
-                  theme={inputTheme}
-                  returnKeyType="done"
-                  blurOnSubmit
-                />
+                <Text variant="labelMedium" style={styles.roleLabel}>Role</Text>
+                <RadioButton.Group onValueChange={(v) => setDraft((c) => ({ ...c, role: v as 'Admin' | 'Staff' }))} value={draft.role}>
+                  <View style={styles.radioRow}>
+                    <Surface style={[styles.radioCard, draft.role === 'Staff' && styles.radioCardActive]} elevation={0} onTouchEnd={() => setDraft((c) => ({ ...c, role: 'Staff' }))}>
+                      <RadioButton value="Staff" color={colors.primary} />
+                      <Text variant="titleSmall" style={styles.staffName}>Staff</Text>
+                    </Surface>
+                    <Surface style={[styles.radioCard, draft.role === 'Admin' && styles.radioCardActive]} elevation={0} onTouchEnd={() => setDraft((c) => ({ ...c, role: 'Admin' }))}>
+                      <RadioButton value="Admin" color={colors.primary} />
+                      <Text variant="titleSmall" style={styles.staffName}>Admin</Text>
+                    </Surface>
+                  </View>
+                </RadioButton.Group>
+              </ScrollView>
+              <View style={styles.modalActions}>
+                <Button onPress={() => setDialogVisible(false)} textColor={colors.muted}>Cancel</Button>
+                <Button mode="contained" onPress={handleSave}>Save</Button>
               </View>
-              <Text variant="labelMedium" style={styles.roleLabel}>Role</Text>
-              <RadioButton.Group onValueChange={(v) => setDraft((c) => ({ ...c, role: v as 'Admin' | 'Staff' }))} value={draft.role}>
-                <View style={styles.radioRow}>
-                  <Surface style={[styles.radioCard, draft.role === 'Staff' && styles.radioCardActive]} elevation={0} onTouchEnd={() => setDraft((c) => ({ ...c, role: 'Staff' }))}>
-                    <RadioButton value="Staff" color={colors.primary} />
-                    <Text variant="titleSmall" style={styles.staffName}>Staff</Text>
-                  </Surface>
-                  <Surface style={[styles.radioCard, draft.role === 'Admin' && styles.radioCardActive]} elevation={0} onTouchEnd={() => setDraft((c) => ({ ...c, role: 'Admin' }))}>
-                    <RadioButton value="Admin" color={colors.primary} />
-                    <Text variant="titleSmall" style={styles.staffName}>Admin</Text>
-                  </Surface>
-                </View>
-              </RadioButton.Group>
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Button onPress={() => setDialogVisible(false)} textColor={colors.muted}>Cancel</Button>
-              <Button mode="contained" onPress={handleSave}>Save</Button>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </Portal>
 
