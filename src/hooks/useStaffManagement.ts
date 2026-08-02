@@ -21,7 +21,7 @@ export function useStaffManagement() {
   }, [reload]);
 
   const addStaff = useCallback(
-    async (payload: Pick<StaffMember, 'name' | 'role' | 'phone'>) => {
+    async (payload: Pick<StaffMember, 'name' | 'role' | 'phone' | 'attendancePin'>) => {
       await createStaff(db, payload);
       await reload();
     },
@@ -29,7 +29,7 @@ export function useStaffManagement() {
   );
 
   const editStaff = useCallback(
-    async (payload: Pick<StaffMember, 'id' | 'name' | 'role' | 'phone'>) => {
+    async (payload: Pick<StaffMember, 'id' | 'name' | 'role' | 'phone' | 'attendancePin'>) => {
       await updateStaff(db, payload);
       await reload();
     },

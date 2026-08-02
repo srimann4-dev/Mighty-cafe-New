@@ -18,6 +18,13 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [adminPin, setAdminPin] = useState('');
+  const [staffPin, setStaffPin] = useState('');
+
+  useEffect(() => {
+    // Reset PIN fields when selection changes
+    setAdminPin('');
+    setStaffPin('');
+  }, [selectedStaffId]);
 
   useEffect(() => {
     let active = true;
@@ -42,9 +49,26 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       Alert.alert('Select staff', 'Choose a staff member to continue.');
       return;
     }
-    if (selectedStaff.role === 'Admin' && adminPin !== appConfig.adminPin) {
-      Alert.alert('Invalid PIN', 'Enter the correct admin PIN.');
-      return;
+    if (selectedStaff.role === 'Admin') {
+      if (adminPin !== appConfig.adminPin) {
+        Alert.alert('Invalid PIN', 'Enter the correct admin PIN.');
+        return;
+      }
+    } else {
+      // Staff must enter their attendance PIN
+      if (!selectedStaff.attendancePin) {
+        // No PIN set — allow login but warn
+        Alert.alert(
+          'No PIN set',
+          `${selectedStaff.name} has no attendance PIN. Ask admin to set one in Staff Management. Logging in without PIN.`,
+          [{ text: 'Continue', onPress: () => onLogin(selectedStaff) }],
+        );
+        return;
+      }
+      if (staffPin !== selectedStaff.attendancePin) {
+        Alert.alert('Invalid PIN', 'Enter the correct staff PIN.');
+        return;
+      }
     }
     onLogin(selectedStaff);
   }
@@ -123,6 +147,21 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             theme={{ colors: { onSurfaceVariant: colors.muted } }}
           />
         )}
+
+        {selectedStaff?.role === 'Staff' && selectedStaff?.attendancePin ? (
+          <TextInput
+            label={`${selectedStaff.name}'s PIN`}
+            mode="outlined"
+            secureTextEntry
+            keyboardType="numeric"
+            value={staffPin}
+            onChangeText={setStaffPin}
+            style={styles.pinInput}
+            outlineStyle={styles.pinOutline}
+            textColor={colors.text}
+            theme={{ colors: { onSurfaceVariant: colors.muted } }}
+          />
+        ) : null}
 
         <Button
           mode="contained"

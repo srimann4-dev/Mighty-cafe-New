@@ -11,6 +11,9 @@ import { MetricCard } from '@/components/MetricCard';
 import { ScreenShell } from '@/components/ScreenShell';
 import { SectionCard } from '@/components/SectionCard';
 import {
+  getAttendanceByRange,
+  getCategoryProfitAnalysis,
+  getItemProfitAnalysis,
   getInventoryItems,
   getLast7DaysData,
   getLast6MonthsData,
@@ -102,9 +105,24 @@ export function ReportsScreen() {
   async function handleExport() {
     try {
       setIsExporting(true);
-      const inventory = await getInventoryItems(db);
-      const staff = await import('@/db/repository').then((r) => r.getStaff(db));
-      await exportReportsWorkbook({ range: dateRange, metrics, sales, saleItemsMap: saleItems, inventory, staff });
+      const [inventory, staff, attendance, itemProfitRows, categoryProfitRows] = await Promise.all([
+        getInventoryItems(db),
+        import('@/db/repository').then((r) => r.getStaff(db)),
+        getAttendanceByRange(db, dateRange.startDate, dateRange.endDate),
+        getItemProfitAnalysis(db, dateRange.startDate, dateRange.endDate),
+        getCategoryProfitAnalysis(db, dateRange.startDate, dateRange.endDate),
+      ]);
+      await exportReportsWorkbook({
+        range: dateRange,
+        metrics,
+        sales,
+        saleItemsMap: saleItems,
+        inventory,
+        staff,
+        attendance,
+        itemProfitRows,
+        categoryProfitRows,
+      });
     } catch (error) {
       Alert.alert('Export failed', error instanceof Error ? error.message : 'Unable to export.');
     } finally {
@@ -152,7 +170,7 @@ export function ReportsScreen() {
       headerRight={
         <View style={styles.headerButtons}>
           <Button mode="contained" icon="file-export-outline" compact loading={isExporting} onPress={handleExport}>
-            Export
+            Drive
           </Button>
           {session?.role === 'Admin' && (
             <View style={styles.resetButtons}>
@@ -195,6 +213,23 @@ export function ReportsScreen() {
           </Chip>
         ))}
       </View>
+
+      <SectionCard title="Google Drive Reports">
+        <View style={styles.driveCard}>
+          <View style={styles.driveIcon}>
+            <MaterialCommunityIcons name="google-drive" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.driveInfo}>
+            <Text style={styles.driveTitle}>Upload complete report workbook</Text>
+            <Text style={styles.driveHint}>
+              Includes sales, staff attendance, profit & loss, inventory, low stock and staff sheets. Choose Google Drive and account mightycafe7@gmail.com in the share screen.
+            </Text>
+          </View>
+        </View>
+        <Button mode="contained" icon="google-drive" loading={isExporting} onPress={handleExport}>
+          Upload to Google Drive
+        </Button>
+      </SectionCard>
 
       {/* KPI row */}
       <View style={styles.row}>
@@ -464,6 +499,11 @@ export function ReportsScreen() {
 const styles = StyleSheet.create({
   rangeRow: { flexDirection: 'row', gap: 8 },
   headerButtons: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  driveCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  driveIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
+  driveInfo: { flex: 1, gap: 4 },
+  driveTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  driveHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   resetButtons: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   resetTodayBtn: { borderColor: colors.warning + '66' },
   resetAllBtn: { borderColor: colors.danger + '66' },

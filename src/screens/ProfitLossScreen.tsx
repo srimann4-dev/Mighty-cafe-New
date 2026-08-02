@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Text } from 'react-native-paper';
+import { Button, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ScreenShell } from '@/components/ScreenShell';
@@ -13,6 +14,7 @@ import {
   getCategoryProfitAnalysis,
   getItemActualCosts,
 } from '@/db/repository';
+import { exportProfitLossWorkbook } from '@/services/reportExport';
 import { formatCurrency } from '@/utils/currency';
 import { getTodayIsoDate, offsetDateByDays } from '@/utils/date';
 import { colors } from '@/theme';
@@ -27,6 +29,9 @@ const RANGES: { key: RangeKey; label: string }[] = [
   { key: 'month', label: '30 Days' },
   { key: 'all', label: 'All Time' },
 ];
+
+const PL_PIN_KEY = '@mighty_cafe_profit_loss_pin';
+const PL_RESET_EMAIL = 'srimann4@gmail.com';
 
 function MarginBar({ margin }: { margin: number }) {
   const isProfit = margin >= 0;
@@ -47,6 +52,31 @@ export function ProfitLossScreen() {
   const [costRows, setCostRows] = useState<ItemActualCost[]>([]);
   const [totals, setTotals] = useState({ revenue: 0, cost: 0, profit: 0 });
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [pinLoaded, setPinLoaded] = useState(false);
+  const [storedPin, setStoredPin] = useState<string | null>(null);
+  const [pinInput, setPinInput] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isResettingPin, setIsResettingPin] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(PL_PIN_KEY)
+      .then((pin) => {
+        if (!mounted) return;
+        setStoredPin(pin);
+        setPinLoaded(true);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setStoredPin(null);
+        setPinLoaded(true);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   function getDateRange(key: RangeKey): { start: string; end: string } {
     const today = getTodayIsoDate();
@@ -71,12 +101,197 @@ export function ProfitLossScreen() {
     setTotals({ revenue: totalRevenue, cost: totalCost, profit: totalRevenue - totalCost });
   }, [db, activeRange]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    if (isUnlocked) load();
+  }, [isUnlocked, load]));
+
+  async function handleSetPin() {
+    const trimmedPin = newPin.trim();
+    if (trimmedPin.length < 4) {
+      Alert.alert('PIN too short', 'Enter at least 4 digits for the P&L PIN.');
+      return;
+    }
+    if (trimmedPin !== confirmPin.trim()) {
+      Alert.alert('PIN does not match', 'Re-enter the same PIN in both boxes.');
+      return;
+    }
+    await AsyncStorage.setItem(PL_PIN_KEY, trimmedPin);
+    setStoredPin(trimmedPin);
+    setIsUnlocked(true);
+    setNewPin('');
+    setConfirmPin('');
+    Alert.alert('PIN saved', 'Profit & Loss is unlocked.');
+  }
+
+  function handleUnlock() {
+    if (pinInput.trim() !== storedPin) {
+      Alert.alert('Wrong PIN', 'Enter the correct P&L PIN.');
+      return;
+    }
+    setPinInput('');
+    setIsUnlocked(true);
+  }
+
+  async function handleResetPin() {
+    if (resetEmail.trim().toLowerCase() !== PL_RESET_EMAIL) {
+      Alert.alert('Email does not match', `Enter ${PL_RESET_EMAIL} to reset the P&L PIN.`);
+      return;
+    }
+    await AsyncStorage.removeItem(PL_PIN_KEY);
+    setStoredPin(null);
+    setIsUnlocked(false);
+    setIsResettingPin(false);
+    setPinInput('');
+    setResetEmail('');
+    Alert.alert('PIN reset', 'Set a new P&L PIN to continue.');
+  }
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const { start, end } = getDateRange(activeRange);
+      await exportProfitLossWorkbook({
+        range: `${start} to ${end}`,
+        itemRows,
+        categoryRows,
+        totals,
+      });
+    } catch (e) {
+      Alert.alert('Export failed', e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  if (!pinLoaded) {
+    return (
+      <ScreenShell title="Profit & Loss" subtitle="Protected report">
+        <SectionCard title="Checking Lock">
+          <View style={styles.lockPanel}>
+            <MaterialCommunityIcons name="lock-clock" size={34} color={colors.muted} />
+            <Text style={styles.lockHint}>Loading P&L lock...</Text>
+          </View>
+        </SectionCard>
+      </ScreenShell>
+    );
+  }
+
+  if (!storedPin) {
+    return (
+      <ScreenShell title="Set P&L PIN" subtitle="Protect Profit & Loss">
+        <SectionCard title="Create PIN">
+          <View style={styles.lockPanel}>
+            <View style={styles.lockIcon}>
+              <MaterialCommunityIcons name="shield-lock-outline" size={32} color={colors.primary} />
+            </View>
+            <Text style={styles.lockTitle}>Set a PIN for Profit & Loss</Text>
+            <Text style={styles.lockHint}>This PIN will be required before anyone can open the P&L report.</Text>
+            <TextInput
+              label="New PIN"
+              mode="outlined"
+              value={newPin}
+              onChangeText={setNewPin}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              style={styles.lockInput}
+            />
+            <TextInput
+              label="Confirm PIN"
+              mode="outlined"
+              value={confirmPin}
+              onChangeText={setConfirmPin}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              style={styles.lockInput}
+            />
+            <Button mode="contained" icon="lock-check-outline" onPress={handleSetPin} style={styles.lockButton}>
+              Save PIN
+            </Button>
+          </View>
+        </SectionCard>
+      </ScreenShell>
+    );
+  }
+
+  if (!isUnlocked) {
+    return (
+      <ScreenShell title="P&L Locked" subtitle="Enter PIN to continue">
+        <SectionCard title={isResettingPin ? 'Reset PIN' : 'Unlock Profit & Loss'}>
+          <View style={styles.lockPanel}>
+            <View style={styles.lockIcon}>
+              <MaterialCommunityIcons name={isResettingPin ? 'email-lock-outline' : 'lock-outline'} size={32} color={colors.primary} />
+            </View>
+            <Text style={styles.lockTitle}>{isResettingPin ? 'Confirm reset email' : 'Profit & Loss is locked'}</Text>
+            <Text style={styles.lockHint}>
+              {isResettingPin
+                ? `Enter ${PL_RESET_EMAIL} to reset the P&L PIN.`
+                : 'Enter your PIN to unlock revenue, cost and profit details.'}
+            </Text>
+            {isResettingPin ? (
+              <>
+                <TextInput
+                  label="Reset email"
+                  mode="outlined"
+                  value={resetEmail}
+                  onChangeText={setResetEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  style={styles.lockInput}
+                />
+                <Button mode="contained" icon="lock-reset" onPress={handleResetPin} style={styles.lockButton}>
+                  Reset PIN
+                </Button>
+                <Button mode="text" onPress={() => setIsResettingPin(false)}>
+                  Back to PIN
+                </Button>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  label="P&L PIN"
+                  mode="outlined"
+                  value={pinInput}
+                  onChangeText={setPinInput}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  maxLength={8}
+                  style={styles.lockInput}
+                />
+                <Button mode="contained" icon="lock-open-outline" onPress={handleUnlock} style={styles.lockButton}>
+                  Unlock
+                </Button>
+                <Button mode="text" icon="lock-reset" onPress={() => setIsResettingPin(true)}>
+                  Reset PIN
+                </Button>
+              </>
+            )}
+          </View>
+        </SectionCard>
+      </ScreenShell>
+    );
+  }
 
   const isProfit = totals.profit >= 0;
 
   return (
-    <ScreenShell title="Profit & Loss" subtitle="Revenue vs cost breakdown">
+    <ScreenShell
+      title="Profit & Loss"
+      subtitle="Revenue vs cost breakdown"
+      headerRight={
+        <Button
+          mode="contained"
+          icon="file-export-outline"
+          compact
+          loading={isExporting}
+          onPress={handleExport}
+          disabled={activeTab === 'cost'}
+        >
+          Export
+        </Button>
+      }
+    >
 
       {/* Range picker — only for item/category tabs */}
       {activeTab !== 'cost' && (
@@ -345,6 +560,12 @@ export function ProfitLossScreen() {
 }
 
 const styles = StyleSheet.create({
+  lockPanel: { alignItems: 'center', gap: 12, paddingVertical: 18 },
+  lockIcon: { width: 64, height: 64, borderRadius: 18, backgroundColor: colors.primary + '14', alignItems: 'center', justifyContent: 'center' },
+  lockTitle: { fontSize: 17, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  lockHint: { fontSize: 13, color: colors.muted, lineHeight: 19, textAlign: 'center' },
+  lockInput: { width: '100%', backgroundColor: '#FFFFFF' },
+  lockButton: { width: '100%', marginTop: 4 },
   rangeRow: { flexDirection: 'row', gap: 8 },
   rangeChip: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#EBEBEB' },
   rangeChipActive: { backgroundColor: colors.primary + '18', borderColor: colors.primary },

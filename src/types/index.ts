@@ -34,6 +34,8 @@ export interface MenuItem {
   isActive: number;
   barcode: string | null;
   stock: number;
+  fulfillmentType: 'on_demand' | 'pre_made';
+  imageUri: string | null;
 }
 
 export interface InventoryItem {
@@ -44,6 +46,7 @@ export interface InventoryItem {
   barcode: string | null;
   lowStockThreshold: number;
   updatedAt: string;
+  itemType: 'ingredient' | 'product';
 }
 
 export interface RecipeRow {
@@ -67,6 +70,7 @@ export interface StaffMember {
   isActive: number;
   createdAt: string;
   updatedAt: string;
+  attendancePin: string | null;
 }
 
 export interface CartItem extends MenuItem {
@@ -112,4 +116,14 @@ export interface DashboardMetrics {
 export interface DateRange {
   startDate: string;
   endDate: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  staffId: string;
+  staffName: string;
+  date: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  status: 'present' | 'absent';
 }

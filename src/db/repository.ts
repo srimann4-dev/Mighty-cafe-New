@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type {
+  AttendanceRecord,
   BillingPayload,
   CashDrawer,
   CashTransaction,
@@ -15,13 +16,15 @@ import type {
   SaleItem,
   StaffMember,
 } from '@/types';
+import { BRAND_PRODUCT_SECTIONS } from '@/config/productCategories';
 import { createId } from '@/utils/ids';
 import { getTodayIsoDate } from '@/utils/date';
 
 export async function getMenuItems(db: SQLiteDatabase): Promise<MenuItem[]> {
   const rows = await db.getAllAsync<MenuItem>(
     `SELECT id, name, price, purchase_cost as purchaseCost,
-      category, is_active as isActive, barcode, stock
+      category, is_active as isActive, barcode, stock,
+      fulfillment_type as fulfillmentType, image_uri as imageUri
      FROM menu_items WHERE is_active = 1 ORDER BY price ASC`,
   );
   return rows;
@@ -30,30 +33,46 @@ export async function getMenuItems(db: SQLiteDatabase): Promise<MenuItem[]> {
 export async function getAllMenuItems(db: SQLiteDatabase): Promise<MenuItem[]> {
   return db.getAllAsync<MenuItem>(
     `SELECT id, name, price, purchase_cost as purchaseCost,
-      category, is_active as isActive, barcode, stock
+      category, is_active as isActive, barcode, stock,
+      fulfillment_type as fulfillmentType, image_uri as imageUri
      FROM menu_items ORDER BY name ASC`,
   );
 }
 
+export async function updateMenuItemImage(db: SQLiteDatabase, id: string, imageUri: string | null): Promise<void> {
+  await db.runAsync('UPDATE menu_items SET image_uri = ? WHERE id = ?', imageUri, id);
+}
+
 export async function createMenuItem(
   db: SQLiteDatabase,
-  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode'>,
+  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode' | 'fulfillmentType'>,
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO menu_items (id, name, price, purchase_cost, category, is_active, barcode, stock)
-     VALUES (?, ?, ?, ?, ?, 1, ?, 0)`,
-    createId('menu'), payload.name, payload.price, payload.purchaseCost, payload.category, payload.barcode ?? null,
+    `INSERT INTO menu_items (id, name, price, purchase_cost, category, is_active, barcode, stock, fulfillment_type)
+     VALUES (?, ?, ?, ?, ?, 1, ?, 0, ?)`,
+    createId('menu'), payload.name, payload.price, payload.purchaseCost,
+    payload.category, payload.barcode ?? null, payload.fulfillmentType,
   );
 }
 
 export async function updateMenuItem(
   db: SQLiteDatabase,
-  payload: Pick<MenuItem, 'id' | 'name' | 'price' | 'purchaseCost' | 'category' | 'isActive' | 'barcode'>,
+  payload: Pick<MenuItem, 'id' | 'name' | 'price' | 'purchaseCost' | 'category' | 'isActive' | 'barcode' | 'fulfillmentType'>,
 ): Promise<void> {
   await db.runAsync(
-    `UPDATE menu_items SET name=?, price=?, purchase_cost=?, category=?, is_active=?, barcode=? WHERE id=?`,
-    payload.name, payload.price, payload.purchaseCost, payload.category, payload.isActive, payload.barcode ?? null, payload.id,
+    `UPDATE menu_items SET name=?, price=?, purchase_cost=?, category=?, is_active=?, barcode=?, fulfillment_type=? WHERE id=?`,
+    payload.name, payload.price, payload.purchaseCost, payload.category,
+    payload.isActive, payload.barcode ?? null, payload.fulfillmentType, payload.id,
   );
+}
+
+export async function deleteMenuItems(db: SQLiteDatabase, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(`DELETE FROM recipes WHERE menu_item_id IN (${placeholders})`, ...ids);
+    await db.runAsync(`DELETE FROM menu_items WHERE id IN (${placeholders})`, ...ids);
+  });
 }
 
 export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryItem[]> {
@@ -65,7 +84,8 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
       unit,
       barcode,
       low_stock_threshold as lowStockThreshold,
-      updated_at as updatedAt
+      updated_at as updatedAt,
+      COALESCE(item_type, 'ingredient') as itemType
      FROM inventory_items
      ORDER BY name ASC`,
   );
@@ -74,11 +94,11 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
 
 export async function createInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'>,
+  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at, item_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     createId('inv'),
     payload.name,
     payload.quantity,
@@ -86,16 +106,17 @@ export async function createInventoryItem(
     payload.barcode,
     payload.lowStockThreshold,
     new Date().toISOString(),
+    payload.itemType ?? 'ingredient',
   );
 }
 
 export async function updateInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'>,
+  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
 ): Promise<void> {
   await db.runAsync(
     `UPDATE inventory_items
-     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?
+     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?, item_type = COALESCE(?, item_type)
      WHERE id = ?`,
     payload.name,
     payload.quantity,
@@ -103,6 +124,7 @@ export async function updateInventoryItem(
     payload.barcode,
     payload.lowStockThreshold,
     new Date().toISOString(),
+    payload.itemType ?? null,
     payload.id,
   );
 }
@@ -145,48 +167,37 @@ export async function replaceInventoryRecipeLinks(
 
 export async function getStaff(db: SQLiteDatabase): Promise<StaffMember[]> {
   const rows = await db.getAllAsync<StaffMember>(
-    `SELECT
-      id,
-      name,
-      role,
-      phone,
+    `SELECT id, name, role, phone,
       is_active as isActive,
       created_at as createdAt,
-      updated_at as updatedAt
-     FROM staff
-     ORDER BY created_at DESC`,
+      updated_at as updatedAt,
+      attendance_pin as attendancePin
+     FROM staff ORDER BY created_at DESC`,
   );
   return rows;
 }
 
 export async function createStaff(
   db: SQLiteDatabase,
-  payload: Pick<StaffMember, 'name' | 'role' | 'phone'>,
+  payload: Pick<StaffMember, 'name' | 'role' | 'phone' | 'attendancePin'>,
 ): Promise<void> {
   const now = new Date().toISOString();
   await db.runAsync(
-    `INSERT INTO staff (id, name, role, phone, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, ?)`,
-    createId('staff'),
-    payload.name,
-    payload.role,
-    payload.phone,
-    now,
-    now,
+    `INSERT INTO staff (id, name, role, phone, is_active, attendance_pin, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?)`,
+    createId('staff'), payload.name, payload.role, payload.phone,
+    payload.attendancePin ?? null, now, now,
   );
 }
 
 export async function updateStaff(
   db: SQLiteDatabase,
-  payload: Pick<StaffMember, 'id' | 'name' | 'role' | 'phone'>,
+  payload: Pick<StaffMember, 'id' | 'name' | 'role' | 'phone' | 'attendancePin'>,
 ): Promise<void> {
   await db.runAsync(
-    'UPDATE staff SET name = ?, role = ?, phone = ?, updated_at = ? WHERE id = ?',
-    payload.name,
-    payload.role,
-    payload.phone,
-    new Date().toISOString(),
-    payload.id,
+    'UPDATE staff SET name=?, role=?, phone=?, attendance_pin=?, updated_at=? WHERE id=?',
+    payload.name, payload.role, payload.phone,
+    payload.attendancePin ?? null, new Date().toISOString(), payload.id,
   );
 }
 
@@ -241,14 +252,16 @@ export async function createSale(db: SQLiteDatabase, payload: BillingPayload): P
     ? await db.getFirstAsync<{ name: string }>('SELECT name FROM staff WHERE id = ?', payload.staffId)
     : null;
 
-  // Check stock for all cart items before proceeding
+  // Check stock for pre_made items only
   for (const cartItem of payload.cartItems) {
-    const menuItem = await db.getFirstAsync<{ stock: number; name: string }>(
-      'SELECT stock, name FROM menu_items WHERE id = ?', cartItem.id,
+    const menuItem = await db.getFirstAsync<{ stock: number; name: string; fulfillment_type: string; category: string }>(
+      'SELECT stock, name, fulfillment_type, category FROM menu_items WHERE id = ?', cartItem.id,
     );
-    if (menuItem && menuItem.stock < cartItem.quantity) {
+    if (menuItem?.fulfillment_type === 'pre_made' && menuItem.stock < cartItem.quantity) {
+      const brandSection = BRAND_PRODUCT_SECTIONS.find((brand) => brand.category === menuItem.category);
+      const stockAction = brandSection ? `Please add stock in ${brandSection.name}.` : 'Please produce more first.';
       throw new Error(
-        `Not enough stock for ${menuItem.name}. Available: ${menuItem.stock}, needed: ${cartItem.quantity}. Please produce more first.`,
+        `Not enough stock for ${menuItem.name}. Available: ${menuItem.stock}, needed: ${cartItem.quantity}. ${stockAction}`,
       );
     }
   }
@@ -270,11 +283,37 @@ export async function createSale(db: SQLiteDatabase, payload: BillingPayload): P
         cartItem.price, cartItem.quantity, cartItem.price * cartItem.quantity,
       );
 
-      // Deduct from menu item stock (not ingredients — that happens at production time)
-      await db.runAsync(
-        'UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?',
-        cartItem.quantity, cartItem.id,
+      const menuItem = await db.getFirstAsync<{ fulfillment_type: string }>(
+        'SELECT fulfillment_type FROM menu_items WHERE id = ?', cartItem.id,
       );
+
+      if (menuItem?.fulfillment_type === 'pre_made') {
+        // Pre-made: deduct from product stock (ingredients already deducted at production time)
+        await db.runAsync(
+          'UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?',
+          cartItem.quantity, cartItem.id,
+        );
+      } else {
+        // On-demand: deduct ingredients directly from inventory at sale time
+        const recipes = await db.getAllAsync<RecipeRow>(
+          `SELECT menu_item_id as menuItemId, inventory_item_id as inventoryItemId,
+            quantity_required as quantityRequired FROM recipes WHERE menu_item_id = ?`,
+          cartItem.id,
+        );
+        for (const recipe of recipes) {
+          const deductQty = recipe.quantityRequired * cartItem.quantity;
+          await db.runAsync(
+            'UPDATE inventory_items SET quantity = MAX(quantity - ?, 0), updated_at = ? WHERE id = ?',
+            deductQty, createdAt, recipe.inventoryItemId,
+          );
+          await db.runAsync(
+            `INSERT INTO stock_movements (id, inventory_item_id, type, quantity_change, note, created_at)
+             VALUES (?, ?, 'sale_deduction', ?, ?, ?)`,
+            createId('move'), recipe.inventoryItemId, -deductQty,
+            `Sold ${cartItem.quantity} × ${cartItem.name}`, createdAt,
+          );
+        }
+      }
     }
   });
 
@@ -472,7 +511,8 @@ export async function findMenuItemByBarcode(
 ): Promise<MenuItem | null> {
   return db.getFirstAsync<MenuItem>(
     `SELECT id, name, price, purchase_cost as purchaseCost,
-      category, is_active as isActive, barcode, stock
+      category, is_active as isActive, barcode, stock,
+      fulfillment_type as fulfillmentType, image_uri as imageUri
      FROM menu_items WHERE barcode = ? AND is_active = 1 LIMIT 1`,
     barcode,
   );
@@ -997,4 +1037,248 @@ export async function getItemActualCosts(db: SQLiteDatabase): Promise<ItemActual
   }
 
   return results;
+}
+
+export async function getTodayAttendance(db: SQLiteDatabase): Promise<AttendanceRecord[]> {
+  const today = getTodayIsoDate();
+  return db.getAllAsync<AttendanceRecord>(
+    `SELECT id, staff_id as staffId, staff_name as staffName,
+      date, check_in as checkIn, check_out as checkOut, status
+     FROM attendance WHERE date = ? ORDER BY check_in ASC`,
+    today,
+  );
+}
+
+export async function getAttendanceByRange(
+  db: SQLiteDatabase,
+  startDate: string,
+  endDate: string,
+): Promise<AttendanceRecord[]> {
+  return db.getAllAsync<AttendanceRecord>(
+    `SELECT id, staff_id as staffId, staff_name as staffName,
+      date, check_in as checkIn, check_out as checkOut, status
+     FROM attendance
+     WHERE date BETWEEN ? AND ?
+     ORDER BY date DESC, check_in ASC`,
+    startDate,
+    endDate,
+  );
+}
+
+export async function checkInStaff(
+  db: SQLiteDatabase,
+  staffId: string,
+  staffName: string,
+): Promise<'checked_in' | 'already_in'> {
+  const today = getTodayIsoDate();
+  const existing = await db.getFirstAsync<{ checkIn: string | null; checkOut: string | null }>(
+    `SELECT check_in as checkIn, check_out as checkOut FROM attendance WHERE staff_id = ? AND date = ?`,
+    staffId, today,
+  );
+  if (existing?.checkIn && !existing?.checkOut) return 'already_in';
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `INSERT INTO attendance (id, staff_id, staff_name, date, check_in, check_out, status)
+     VALUES (?, ?, ?, ?, ?, NULL, 'present')
+     ON CONFLICT(staff_id, date) DO UPDATE SET check_in = ?, check_out = NULL, status = 'present'`,
+    createId('att'), staffId, staffName, today, now, now,
+  );
+  return 'checked_in';
+}
+
+export async function checkOutStaff(
+  db: SQLiteDatabase,
+  staffId: string,
+): Promise<'checked_out' | 'not_checked_in'> {
+  const today = getTodayIsoDate();
+  const existing = await db.getFirstAsync<{ checkIn: string | null; checkOut: string | null }>(
+    `SELECT check_in as checkIn, check_out as checkOut FROM attendance WHERE staff_id = ? AND date = ?`,
+    staffId, today,
+  );
+  if (!existing?.checkIn) return 'not_checked_in';
+  await db.runAsync(
+    `UPDATE attendance SET check_out = ? WHERE staff_id = ? AND date = ?`,
+    new Date().toISOString(), staffId, today,
+  );
+  return 'checked_out';
+}
+
+export async function getAttendanceSummary(
+  db: SQLiteDatabase,
+  staffId: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ present: number; absent: number; totalDays: number }> {
+  const result = await db.getFirstAsync<{ present: number }>(
+    `SELECT COUNT(*) as present FROM attendance
+     WHERE staff_id = ? AND date BETWEEN ? AND ? AND status = 'present'`,
+    staffId, startDate, endDate,
+  );
+  const present = result?.present ?? 0;
+  // Calculate working days in range
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return { present, absent: totalDays - present, totalDays };
+}
+
+// ─── Product Sections ────────────────────────────────────────────────────────
+
+export interface ProductSection {
+  id: string;
+  name: string;
+  category: string;
+  icon: string;
+  color: string;
+  sortOrder: number;
+}
+
+export async function getProductSections(db: SQLiteDatabase): Promise<ProductSection[]> {
+  return db.getAllAsync<ProductSection>(
+    `SELECT id, name, category, icon, color, sort_order as sortOrder
+     FROM product_sections ORDER BY sort_order ASC, created_at ASC`,
+  );
+}
+
+export async function createProductSection(
+  db: SQLiteDatabase,
+  payload: { name: string; category: string; icon: string; color: string },
+): Promise<void> {
+  const maxOrder = await db.getFirstAsync<{ m: number }>(
+    'SELECT COALESCE(MAX(sort_order), 0) as m FROM product_sections',
+  );
+  await db.runAsync(
+    `INSERT OR IGNORE INTO product_sections (id, name, category, icon, color, sort_order, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    createId('sec'),
+    payload.name,
+    payload.category,
+    payload.icon,
+    payload.color,
+    (maxOrder?.m ?? 0) + 1,
+    new Date().toISOString(),
+  );
+}
+
+export async function deleteProductSection(db: SQLiteDatabase, id: string): Promise<void> {
+  await db.runAsync('DELETE FROM product_sections WHERE id = ?', id);
+}
+
+export async function ensureProductSection(
+  db: SQLiteDatabase,
+  category: string,
+): Promise<void> {
+  // Creates a section for this category if one doesn't already exist
+  const existing = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM product_sections WHERE LOWER(category) = LOWER(?)',
+    category,
+  );
+  if (!existing) {
+    const palette = ['#E67E22', '#9B59B6', '#27AE60', '#E74C3C', '#2980B9', '#F39C12', '#1ABC9C', '#16A085'];
+    const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM product_sections');
+    const color = palette[(count?.c ?? 0) % palette.length];
+    await createProductSection(db, { name: category, category, icon: 'tag-outline', color });
+  }
+}
+
+export interface InventoryAuditSummary {
+  id: string;
+  auditDate: string;
+  note: string | null;
+  createdAt: string;
+  itemCount: number;
+  varianceCount: number;
+}
+
+export async function getInventoryAudits(db: SQLiteDatabase): Promise<InventoryAuditSummary[]> {
+  return db.getAllAsync<InventoryAuditSummary>(
+    `SELECT
+      a.id,
+      a.audit_date as auditDate,
+      a.note,
+      a.created_at as createdAt,
+      COUNT(ai.id) as itemCount,
+      SUM(CASE WHEN ai.difference != 0 THEN 1 ELSE 0 END) as varianceCount
+     FROM inventory_audits a
+     LEFT JOIN inventory_audit_items ai ON ai.audit_id = a.id
+     GROUP BY a.id
+     ORDER BY a.created_at DESC
+     LIMIT 8`,
+  );
+}
+
+export async function createInventoryAudit(
+  db: SQLiteDatabase,
+  payload: {
+    auditDate: string;
+    note: string;
+    items: Array<{
+      inventoryItemId: string;
+      itemName: string;
+      systemQuantity: number;
+      countedQuantity: number;
+      unit: string;
+      itemType: 'ingredient' | 'product';
+      barcode: string | null;
+    }>;
+  },
+): Promise<void> {
+  const auditId = createId('audit');
+  const now = new Date().toISOString();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO inventory_audits (id, audit_date, note, created_at) VALUES (?, ?, ?, ?)',
+      auditId,
+      payload.auditDate,
+      payload.note.trim() || null,
+      now,
+    );
+
+    for (const item of payload.items) {
+      const difference = item.countedQuantity - item.systemQuantity;
+      await db.runAsync(
+        `INSERT INTO inventory_audit_items
+          (id, audit_id, inventory_item_id, item_name, system_quantity, counted_quantity, difference, unit, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        createId('audit_item'),
+        auditId,
+        item.inventoryItemId,
+        item.itemName,
+        item.systemQuantity,
+        item.countedQuantity,
+        difference,
+        item.unit,
+        difference === 0 ? 'Matched' : 'Adjusted from audit',
+      );
+
+      if (difference !== 0) {
+        await db.runAsync(
+          'UPDATE inventory_items SET quantity = ?, updated_at = ? WHERE id = ?',
+          item.countedQuantity,
+          now,
+          item.inventoryItemId,
+        );
+        await db.runAsync(
+          `INSERT INTO stock_movements (id, inventory_item_id, type, quantity_change, note, created_at)
+           VALUES (?, ?, 'manual_adjustment', ?, ?, ?)`,
+          createId('move'),
+          item.inventoryItemId,
+          difference,
+          `Weekly audit: counted ${item.countedQuantity}${item.unit}`,
+          now,
+        );
+
+        if (item.itemType === 'product') {
+          await db.runAsync(
+            `UPDATE menu_items
+             SET stock = ?
+             WHERE LOWER(name) = LOWER(?) OR (barcode IS NOT NULL AND barcode = ?)`,
+            item.countedQuantity,
+            item.itemName,
+            item.barcode,
+          );
+        }
+      }
+    }
+  });
 }

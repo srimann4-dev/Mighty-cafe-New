@@ -19,6 +19,7 @@ const inventorySeed = [
   { id: 'inv_pista_mix', name: 'Pista Powder', quantity: 1200, unit: 'g', barcode: 'PISTA-001', lowStockThreshold: 200 },
   { id: 'inv_curd', name: 'Curd', quantity: 4000, unit: 'ml', barcode: 'CURD-001', lowStockThreshold: 600 },
   { id: 'inv_bottle', name: 'Bottle', quantity: 300, unit: 'pcs', barcode: 'BOTTLE-001', lowStockThreshold: 50 },
+  { id: 'inv_sprite', name: 'Sprite', quantity: 0, unit: 'ml', barcode: 'SPRITE-001', lowStockThreshold: 1000 },
 ];
 
 const recipeSeed = [
@@ -145,11 +146,60 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       category TEXT NOT NULL DEFAULT 'General',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS attendance (
+      id TEXT PRIMARY KEY NOT NULL,
+      staff_id TEXT NOT NULL,
+      staff_name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      check_in TEXT,
+      check_out TEXT,
+      status TEXT NOT NULL DEFAULT 'present',
+      UNIQUE(staff_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_sections (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL UNIQUE,
+      category TEXT NOT NULL UNIQUE,
+      icon TEXT NOT NULL DEFAULT 'tag-outline',
+      color TEXT NOT NULL DEFAULT '#888888',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_audits (
+      id TEXT PRIMARY KEY NOT NULL,
+      audit_date TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_audit_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      audit_id TEXT NOT NULL,
+      inventory_item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      system_quantity REAL NOT NULL,
+      counted_quantity REAL NOT NULL,
+      difference REAL NOT NULL,
+      unit TEXT NOT NULL,
+      note TEXT
+    );
   `);
+
+  // Add attendance_pin column to staff if not exists
+  const staffColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(staff)');
+  if (!staffColumns.some((col) => col.name === 'attendance_pin')) {
+    await db.execAsync('ALTER TABLE staff ADD COLUMN attendance_pin TEXT;');
+  }
 
   const inventoryColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(inventory_items)');
   if (!inventoryColumns.some((column) => column.name === 'barcode')) {
     await db.execAsync('ALTER TABLE inventory_items ADD COLUMN barcode TEXT;');
+  }
+  if (!inventoryColumns.some((column) => column.name === 'item_type')) {
+    await db.execAsync("ALTER TABLE inventory_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'ingredient';");
   }
 
   const menuColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(menu_items)');
@@ -161,7 +211,12 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   }
   if (!menuColumns.some((column) => column.name === 'stock')) {
     await db.execAsync('ALTER TABLE menu_items ADD COLUMN stock INTEGER NOT NULL DEFAULT 0;');
-    // Existing items already in DB get stock = 0 (correct — they need to be produced first)
+  }
+  if (!menuColumns.some((column) => column.name === 'fulfillment_type')) {
+    await db.execAsync("ALTER TABLE menu_items ADD COLUMN fulfillment_type TEXT NOT NULL DEFAULT 'on_demand';");
+  }
+  if (!menuColumns.some((column) => column.name === 'image_uri')) {
+    await db.execAsync('ALTER TABLE menu_items ADD COLUMN image_uri TEXT;');
   }
 
   const now = new Date().toISOString();
@@ -208,6 +263,18 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       recipe.menuItemId,
       recipe.inventoryItemId,
       recipe.quantityRequired,
+    );
+  }
+
+  const mojito = await db.getFirstAsync<{ id: string }>(
+    "SELECT id FROM menu_items WHERE LOWER(name) LIKE '%mojito%' LIMIT 1",
+  );
+  if (mojito) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO recipes (menu_item_id, inventory_item_id, quantity_required) VALUES (?, ?, ?)',
+      mojito.id,
+      'inv_sprite',
+      150,
     );
   }
 

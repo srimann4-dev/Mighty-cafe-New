@@ -61,12 +61,12 @@ export function OpeningBalanceModal({ visible, onConfirm, onSkip }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
+  overlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 60, paddingHorizontal: 16 },
   container: {
     backgroundColor: colors.card,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderRadius: 28,
     padding: 24, gap: 16,
-    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   iconRow: { alignItems: 'center' },
   iconBox: {

@@ -21,7 +21,7 @@ export function useProducts() {
   }, [reload]);
 
   const saveMenuItem = useCallback(
-    async (payload: Pick<MenuItem, 'id' | 'name' | 'price' | 'purchaseCost' | 'category' | 'isActive' | 'barcode'>) => {
+    async (payload: Pick<MenuItem, 'id' | 'name' | 'price' | 'purchaseCost' | 'category' | 'isActive' | 'barcode' | 'fulfillmentType'>) => {
       if (payload.id) {
         await updateMenuItem(db, payload);
       } else {

@@ -3,20 +3,23 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LoginScreen } from '@/screens/LoginScreen';
 import { BillingScreen } from '@/screens/BillingScreen';
-import { ProductsScreen } from '@/screens/ProductsScreen';
-import { InventoryScreen } from '@/screens/InventoryScreen';
+import { ProductsNavigator } from '@/navigation/ProductsNavigator';
+import { InventoryNavigator } from '@/navigation/InventoryNavigator';
 import { ReportsScreen } from '@/screens/ReportsScreen';
 import { StaffManagementScreen } from '@/screens/StaffManagementScreen';
 import { ExpensesNavigator } from '@/navigation/ExpensesNavigator';
 import { ProfitLossScreen } from '@/screens/ProfitLossScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { AttendanceScreen } from '@/screens/AttendanceScreen';
 import { OpeningBalanceModal } from '@/components/OpeningBalanceModal';
 import { colors } from '@/theme';
 import { useAppStore } from '@/store/useAppStore';
 import { getTodayCashDrawer, openCashDrawer } from '@/db/repository';
+import { usePrinterAutoConnect } from '@/hooks/usePrinterAutoConnect';
 import type { StaffMember } from '@/types';
 
 const Tab = createBottomTabNavigator();
@@ -42,20 +45,17 @@ export function AppNavigator() {
   const cashDrawerReady = useAppStore((state) => state.cashDrawerReady);
   const setCashDrawerReady = useAppStore((state) => state.setCashDrawerReady);
   const [showOpeningBalance, setShowOpeningBalance] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  // Auto-reconnect printer and load saved layout on startup
+  usePrinterAutoConnect();
 
   useEffect(() => {
     if (!session || cashDrawerReady) return;
-    if (session.role !== 'Admin') {
-      setCashDrawerReady(true);
-      return;
-    }
-    // Check if today's drawer already exists
+    if (session.role !== 'Admin') { setCashDrawerReady(true); return; }
     getTodayCashDrawer(db).then((drawer) => {
-      if (drawer) {
-        setCashDrawerReady(true);
-      } else {
-        setShowOpeningBalance(true);
-      }
+      if (drawer) setCashDrawerReady(true);
+      else setShowOpeningBalance(true);
     });
   }, [session, cashDrawerReady, db, setCashDrawerReady]);
 
@@ -65,17 +65,8 @@ export function AppNavigator() {
     setCashDrawerReady(true);
   }
 
-  function handleSkipOpeningBalance() {
-    setShowOpeningBalance(false);
-    setCashDrawerReady(true);
-  }
-
   function handleLogin(staff: StaffMember) {
-    login({
-      staffId: staff.id,
-      name: staff.name,
-      role: staff.role,
-    });
+    login({ staffId: staff.id, name: staff.name, role: staff.role });
   }
 
   return (
@@ -83,22 +74,19 @@ export function AppNavigator() {
       <OpeningBalanceModal
         visible={showOpeningBalance}
         onConfirm={handleOpeningBalance}
-        onSkip={handleSkipOpeningBalance}
+        onSkip={() => { setShowOpeningBalance(false); setCashDrawerReady(true); }}
       />
       {session ? (
         <Tab.Navigator
           screenOptions={({ route }) => ({
             headerShown: false,
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.muted,
-            tabBarLabelStyle: {
-              fontSize: 11,
-              fontWeight: '600',
-            },
+            tabBarActiveTintColor: '#2ECC71',
+            tabBarInactiveTintColor: '#888888',
+            tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
             tabBarStyle: {
-              height: 72,
-              paddingTop: 8,
-              paddingBottom: 10,
+              height: 64 + insets.bottom,
+              paddingTop: 6,
+              paddingBottom: insets.bottom + 8,
               backgroundColor: '#FFFFFF',
               borderTopColor: '#EBEBEB',
               borderTopWidth: 1,
@@ -111,25 +99,22 @@ export function AppNavigator() {
                 Reports: 'file-chart-outline',
                 Expenses: 'receipt',
                 'P&L': 'chart-line',
+                Attendance: 'fingerprint',
                 Staff: 'account-group-outline',
                 Settings: 'cog-outline',
               };
-
-              return <MaterialCommunityIcons name={iconMap[route.name]} size={size} color={color} />;
+              return <MaterialCommunityIcons name={iconMap[route.name] ?? 'circle'} size={size} color={color} />;
             },
           })}
         >
           <Tab.Screen name="Billing" component={BillingScreen} />
-          {session.role === 'Admin' ? <Tab.Screen name="Products" component={ProductsScreen} /> : null}
-          <Tab.Screen name="Inventory" component={InventoryScreen} />
+          {session.role === 'Admin' ? <Tab.Screen name="Products" component={ProductsNavigator} /> : null}
+          <Tab.Screen name="Inventory" component={InventoryNavigator} />
           <Tab.Screen name="Expenses" component={ExpensesNavigator} />
           <Tab.Screen name="Reports" component={ReportsScreen} />
-          {session.role === 'Admin' ? (
-            <Tab.Screen name="P&L" component={ProfitLossScreen} options={{ title: 'Profit & Loss' }} />
-          ) : null}
-          {session.role === 'Admin' ? (
-            <Tab.Screen name="Staff" component={StaffManagementScreen} options={{ title: 'Staff Management' }} />
-          ) : null}
+          {session.role === 'Admin' ? <Tab.Screen name="P&L" component={ProfitLossScreen} options={{ title: 'P&L' }} /> : null}
+          <Tab.Screen name="Attendance" component={AttendanceScreen} />
+          {session.role === 'Admin' ? <Tab.Screen name="Staff" component={StaffManagementScreen} options={{ title: 'Staff' }} /> : null}
           <Tab.Screen name="Settings" component={SettingsScreen} />
         </Tab.Navigator>
       ) : (
