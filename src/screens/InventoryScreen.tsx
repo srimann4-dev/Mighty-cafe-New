@@ -236,6 +236,17 @@ export function InventoryScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
       </Pressable>
 
+      <Pressable style={styles.scanListBtn} onPress={() => navigation.navigate('BarcodeScanList')}>
+        <View style={styles.scanListBtnIcon}>
+          <MaterialCommunityIcons name="barcode-scan" size={22} color="#fff" />
+        </View>
+        <View style={styles.purchaseBtnText}>
+          <Text style={styles.scanListBtnTitle}>Barcode Scan List</Text>
+          <Text style={styles.scanListBtnSub}>Scan on phone · enter qty on laptop · export to Excel</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" />
+      </Pressable>
+
       {/* ── Import / Export ── */}
       <SectionCard title="Bulk Import / Export">
         <Text style={styles.importHint}>
@@ -554,6 +565,10 @@ const styles = StyleSheet.create({
   auditBtnIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
   auditBtnTitle: { fontSize: 15, fontWeight: '800', color: colors.primary },
   auditBtnSub: { fontSize: 12, color: colors.muted },
+  scanListBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#1A1A1A', borderRadius: 18, padding: 16, marginTop: 8 },
+  scanListBtnIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  scanListBtnTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  scanListBtnSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)' },
 
   // Expandable section header
   expandHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
