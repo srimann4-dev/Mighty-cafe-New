@@ -129,7 +129,10 @@ export async function createInventoryItem(
 
 export async function updateInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product'; avgUnitCost?: number },
+  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & {
+    itemType?: 'ingredient' | 'product';
+    avgUnitCost?: number;
+  },
 ): Promise<void> {
   await db.runAsync(
     `UPDATE inventory_items
@@ -261,7 +264,6 @@ export async function adjustInventoryQuantity(
         inventoryItemId,
       );
     }
-
     await db.runAsync(
       `INSERT INTO stock_movements (id, inventory_item_id, type, quantity_change, note, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
