@@ -5,6 +5,8 @@ import { Button, SegmentedButtons, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSQLiteContext } from 'expo-sqlite';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { ScreenShell } from '@/components/ScreenShell';
 import { SectionCard } from '@/components/SectionCard';
@@ -28,6 +30,7 @@ const BARCODE_SCAN_MODE_KEY = '@mighty_cafe_barcode_scan_mode';
 
 export function SettingsScreen() {
   const db = useSQLiteContext();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { connectedPrinter, barcodeScanner, layout, setPrinter, setBarcodeScanner, setLayout, loadPersistedBarcodeScanner } = usePrinterStore();
   const [scanning, setScanning] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -214,6 +217,30 @@ export function SettingsScreen() {
 
   return (
     <ScreenShell title="Settings" subtitle="Printer, UPI, layout and backup">
+
+      {/* ── Quick Links ── */}
+      <SectionCard title="Reports & Finance">
+        {[
+          { label: 'Expenses', sub: 'Record and track daily spending', icon: 'receipt', screen: 'Expenses', color: '#E74C3C' },
+          { label: 'Reports', sub: 'Sales, orders, charts and export', icon: 'file-chart-outline', screen: 'Reports', color: '#3498DB' },
+          { label: 'Profit & Loss', sub: 'P&L analysis by item and category', icon: 'chart-line', screen: 'ProfitLoss', color: '#2ECC71' },
+        ].map((item) => (
+          <Pressable
+            key={item.screen}
+            style={({ pressed }) => [styles.navLink, pressed && { opacity: 0.7 }]}
+            onPress={() => navigation.navigate(item.screen as any)}
+          >
+            <View style={[styles.navLinkIcon, { backgroundColor: item.color + '18' }]}>
+              <MaterialCommunityIcons name={item.icon as any} size={22} color={item.color} />
+            </View>
+            <View style={styles.navLinkText}>
+              <Text style={styles.navLinkLabel}>{item.label}</Text>
+              <Text style={styles.navLinkSub}>{item.sub}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color="#BBBBBB" />
+          </Pressable>
+        ))}
+      </SectionCard>
 
       <SectionCard title="Admin PIN">
         <Text style={styles.sectionHint}>Change the PIN used for admin login and data reset. Must be 4 digits.</Text>
@@ -530,4 +557,11 @@ const styles = StyleSheet.create({
   presetOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#EBEBEB', backgroundColor: '#F9F9F9' },
   presetOptionActive: { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
   presetOptionLabel: { fontSize: 14, fontWeight: '700', color: colors.text },
+
+  // Navigation links
+  navLink: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  navLinkIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  navLinkText: { flex: 1, gap: 2 },
+  navLinkLabel: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  navLinkSub: { fontSize: 12, color: '#888888' },
 });

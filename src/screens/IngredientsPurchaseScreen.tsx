@@ -383,6 +383,8 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
     setScannerVisible(false);
     if (!scanned) return;
     setProductBarcode(scanned);
+    // Reopen the product modal that was closed to show the scanner
+    setTimeout(() => setProductModalVisible(true), 200);
 
     const allMenu = menuItems.length ? menuItems : await getAllMenuItems(db);
     const allInv = inventoryItems.length ? inventoryItems : await getInventoryItems(db);
@@ -708,7 +710,13 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
                         style={[inputStyle, styles.barcodeInput]} textColor={colors.text} theme={inputTheme}
                         returnKeyType="next"
                       />
-                      <Pressable style={styles.scanBtn} onPress={() => { Keyboard.dismiss(); setScannerVisible(true); }}>
+                      <Pressable style={styles.scanBtn} onPress={() => {
+                        Keyboard.dismiss();
+                        // Close product modal first, then open scanner
+                        // This prevents the scanner being hidden behind the modal on Android
+                        setProductModalVisible(false);
+                        setTimeout(() => setScannerVisible(true), 300);
+                      }}>
                         <MaterialCommunityIcons name="barcode-scan" size={22} color="#fff" />
                       </Pressable>
                     </View>

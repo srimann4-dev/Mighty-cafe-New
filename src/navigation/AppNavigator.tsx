@@ -1,5 +1,6 @@
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
@@ -21,6 +22,21 @@ import { useAppStore } from '@/store/useAppStore';
 import { getTodayCashDrawer, openCashDrawer } from '@/db/repository';
 import { usePrinterAutoConnect } from '@/hooks/usePrinterAutoConnect';
 import type { StaffMember } from '@/types';
+
+const Tab = createBottomTabNavigator();
+const SettingsStack = createNativeStackNavigator();
+
+// Settings stack: Settings → Reports / P&L / Expenses
+function SettingsNavigator() {
+  return (
+    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+      <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} />
+      <SettingsStack.Screen name="Reports" component={ReportsScreen} options={{ animation: 'slide_from_right' }} />
+      <SettingsStack.Screen name="ProfitLoss" component={ProfitLossScreen} options={{ animation: 'slide_from_right' }} />
+      <SettingsStack.Screen name="Expenses" component={ExpensesNavigator} options={{ animation: 'slide_from_right' }} />
+    </SettingsStack.Navigator>
+  );
+}
 
 const Tab = createBottomTabNavigator();
 
@@ -110,12 +126,9 @@ export function AppNavigator() {
           <Tab.Screen name="Billing" component={BillingScreen} />
           {session.role === 'Admin' ? <Tab.Screen name="Products" component={ProductsNavigator} /> : null}
           <Tab.Screen name="Inventory" component={InventoryNavigator} />
-          <Tab.Screen name="Expenses" component={ExpensesNavigator} />
-          <Tab.Screen name="Reports" component={ReportsScreen} />
-          {session.role === 'Admin' ? <Tab.Screen name="P&L" component={ProfitLossScreen} options={{ title: 'P&L' }} /> : null}
           <Tab.Screen name="Attendance" component={AttendanceScreen} />
           {session.role === 'Admin' ? <Tab.Screen name="Staff" component={StaffManagementScreen} options={{ title: 'Staff' }} /> : null}
-          <Tab.Screen name="Settings" component={SettingsScreen} />
+          <Tab.Screen name="Settings" component={SettingsNavigator} />
         </Tab.Navigator>
       ) : (
         <LoginScreen onLogin={handleLogin} />
