@@ -45,13 +45,13 @@ export async function updateMenuItemImage(db: SQLiteDatabase, id: string, imageU
 
 export async function createMenuItem(
   db: SQLiteDatabase,
-  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode' | 'fulfillmentType'>,
+  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode' | 'fulfillmentType'> & { stock?: number },
 ): Promise<void> {
   await db.runAsync(
     `INSERT INTO menu_items (id, name, price, purchase_cost, category, is_active, barcode, stock, fulfillment_type)
-     VALUES (?, ?, ?, ?, ?, 1, ?, 0, ?)`,
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     createId('menu'), payload.name, payload.price, payload.purchaseCost,
-    payload.category, payload.barcode ?? null, payload.fulfillmentType,
+    payload.category, payload.barcode ?? null, payload.stock ?? 0, payload.fulfillmentType,
   );
 }
 
@@ -63,6 +63,18 @@ export async function updateMenuItem(
     `UPDATE menu_items SET name=?, price=?, purchase_cost=?, category=?, is_active=?, barcode=?, fulfillment_type=? WHERE id=?`,
     payload.name, payload.price, payload.purchaseCost, payload.category,
     payload.isActive, payload.barcode ?? null, payload.fulfillmentType, payload.id,
+  );
+}
+
+export async function addMenuItemStock(
+  db: SQLiteDatabase,
+  menuItemId: string,
+  quantity: number,
+): Promise<void> {
+  await db.runAsync(
+    'UPDATE menu_items SET stock = MAX(stock + ?, 0) WHERE id = ?',
+    quantity,
+    menuItemId,
   );
 }
 
@@ -85,7 +97,8 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
       barcode,
       low_stock_threshold as lowStockThreshold,
       updated_at as updatedAt,
-      COALESCE(item_type, 'ingredient') as itemType
+      COALESCE(item_type, 'ingredient') as itemType,
+      COALESCE(avg_unit_cost, 0) as avgUnitCost
      FROM inventory_items
      ORDER BY name ASC`,
   );
@@ -94,11 +107,14 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
 
 export async function createInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
+  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & {
+    itemType?: 'ingredient' | 'product';
+    avgUnitCost?: number;
+  },
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at, item_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at, item_type, avg_unit_cost)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     createId('inv'),
     payload.name,
     payload.quantity,
@@ -107,16 +123,21 @@ export async function createInventoryItem(
     payload.lowStockThreshold,
     new Date().toISOString(),
     payload.itemType ?? 'ingredient',
+    payload.avgUnitCost ?? 0,
   );
 }
 
 export async function updateInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
+  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & {
+    itemType?: 'ingredient' | 'product';
+    avgUnitCost?: number;
+  },
 ): Promise<void> {
   await db.runAsync(
     `UPDATE inventory_items
-     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?, item_type = COALESCE(?, item_type)
+     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?,
+         item_type = COALESCE(?, item_type), avg_unit_cost = COALESCE(?, avg_unit_cost)
      WHERE id = ?`,
     payload.name,
     payload.quantity,
@@ -125,6 +146,7 @@ export async function updateInventoryItem(
     payload.lowStockThreshold,
     new Date().toISOString(),
     payload.itemType ?? null,
+    payload.avgUnitCost ?? null,
     payload.id,
   );
 }
@@ -211,14 +233,37 @@ export async function adjustInventoryQuantity(
   quantityChange: number,
   note: string,
   type: 'manual_adjustment' | 'stock_addition',
+  unitCost?: number,
 ): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), updated_at = ? WHERE id = ?',
-      quantityChange,
-      new Date().toISOString(),
+    const current = await db.getFirstAsync<{ quantity: number; avgUnitCost: number }>(
+      'SELECT quantity, COALESCE(avg_unit_cost, 0) as avgUnitCost FROM inventory_items WHERE id = ?',
       inventoryItemId,
     );
+    const currentQty = current?.quantity ?? 0;
+    const currentAvg = current?.avgUnitCost ?? 0;
+    const now = new Date().toISOString();
+
+    if (quantityChange > 0 && unitCost != null && unitCost > 0) {
+      const newQty = currentQty + quantityChange;
+      const newAvg = newQty > 0
+        ? (currentQty * currentAvg + quantityChange * unitCost) / newQty
+        : unitCost;
+      await db.runAsync(
+        'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), avg_unit_cost = ?, updated_at = ? WHERE id = ?',
+        quantityChange,
+        newAvg,
+        now,
+        inventoryItemId,
+      );
+    } else {
+      await db.runAsync(
+        'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), updated_at = ? WHERE id = ?',
+        quantityChange,
+        now,
+        inventoryItemId,
+      );
+    }
     await db.runAsync(
       `INSERT INTO stock_movements (id, inventory_item_id, type, quantity_change, note, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -227,7 +272,7 @@ export async function adjustInventoryQuantity(
       type,
       quantityChange,
       note,
-      new Date().toISOString(),
+      now,
     );
   });
 }
@@ -641,13 +686,14 @@ export async function addStockByName(
   inventoryName: string,
   quantity: number,
   note: string,
+  unitCost?: number,
 ): Promise<boolean> {
   const item = await db.getFirstAsync<{ id: string }>(
     `SELECT id FROM inventory_items WHERE LOWER(name) = LOWER(?) LIMIT 1`,
     inventoryName,
   );
   if (!item) return false;
-  await adjustInventoryQuantity(db, item.id, Math.abs(quantity), note, 'stock_addition');
+  await adjustInventoryQuantity(db, item.id, Math.abs(quantity), note, 'stock_addition', unitCost);
   return true;
 }
 

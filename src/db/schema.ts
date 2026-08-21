@@ -73,7 +73,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       unit TEXT NOT NULL,
       barcode TEXT,
       low_stock_threshold REAL NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      avg_unit_cost REAL NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS recipes (
@@ -200,6 +201,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   }
   if (!inventoryColumns.some((column) => column.name === 'item_type')) {
     await db.execAsync("ALTER TABLE inventory_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'ingredient';");
+  }
+  if (!inventoryColumns.some((column) => column.name === 'avg_unit_cost')) {
+    await db.execAsync('ALTER TABLE inventory_items ADD COLUMN avg_unit_cost REAL NOT NULL DEFAULT 0;');
   }
 
   const menuColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(menu_items)');
