@@ -28,7 +28,7 @@ import { formatDateTime, getTodayIsoDate, offsetDateByDays } from '@/utils/date'
 import { colors } from '@/theme';
 import { inputTheme, inputStyle } from '@/theme/inputTheme';
 import { useAppStore } from '@/store/useAppStore';
-import { appConfig } from '@/config/appConfig';
+import { getAdminPin } from '@/services/adminPin';
 
 const SCREEN_W = Dimensions.get('window').width - 64;
 
@@ -131,7 +131,8 @@ export function ReportsScreen() {
   }
 
   async function handleReset() {
-    if (resetPin !== appConfig.adminPin) {
+    const storedAdminPin = await getAdminPin();
+    if (resetPin !== storedAdminPin) {
       Alert.alert('Wrong PIN', 'Enter the correct admin PIN to reset.');
       return;
     }

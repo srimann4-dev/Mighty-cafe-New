@@ -10,6 +10,7 @@ import { ScreenShell } from '@/components/ScreenShell';
 import { SectionCard } from '@/components/SectionCard';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { scanBluetoothDevices, connectPrinter, disconnectPrinter } from '@/services/printBill';
+import { getAdminPin, setAdminPin } from '@/services/adminPin';
 import { exportBackup, importBackup } from '@/services/backup';
 import {
   getLastSupabaseSync,
@@ -43,6 +44,10 @@ export function SettingsScreen() {
   const [savingSupabase, setSavingSupabase] = useState(false);
   const [testingSupabase, setTestingSupabase] = useState(false);
   const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [currentAdminPin, setCurrentAdminPin] = useState('');
+  const [newAdminPin, setNewAdminPin] = useState('');
+  const [confirmAdminPin, setConfirmAdminPin] = useState('');
+  const [savingAdminPin, setSavingAdminPin] = useState(false);
 
   useEffect(() => {
     loadPersistedBarcodeScanner();
@@ -137,6 +142,39 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleChangeAdminPin() {
+    const current = currentAdminPin.trim();
+    const next = newAdminPin.trim();
+    const confirm = confirmAdminPin.trim();
+    const stored = await getAdminPin();
+
+    if (current !== stored) {
+      Alert.alert('Wrong PIN', 'Enter the current admin PIN.');
+      return;
+    }
+    if (!/^\d{4}$/.test(next)) {
+      Alert.alert('Invalid PIN', 'New PIN must be exactly 4 digits.');
+      return;
+    }
+    if (next !== confirm) {
+      Alert.alert('PIN does not match', 'New PIN and confirm PIN must match.');
+      return;
+    }
+
+    setSavingAdminPin(true);
+    try {
+      await setAdminPin(next);
+      setCurrentAdminPin('');
+      setNewAdminPin('');
+      setConfirmAdminPin('');
+      Alert.alert('PIN updated', 'The admin PIN has been saved.');
+    } catch (e) {
+      Alert.alert('Save failed', e instanceof Error ? e.message : 'Unable to save admin PIN.');
+    } finally {
+      setSavingAdminPin(false);
+    }
+  }
+
   // ── Backup ──
   async function handleBackup() {
     setBackingUp(true);
@@ -176,6 +214,49 @@ export function SettingsScreen() {
 
   return (
     <ScreenShell title="Settings" subtitle="Printer, UPI, layout and backup">
+
+      <SectionCard title="Admin PIN">
+        <Text style={styles.sectionHint}>Change the PIN used for admin login and data reset. Must be 4 digits.</Text>
+        <TextInput
+          label="Current PIN"
+          mode="outlined"
+          secureTextEntry
+          keyboardType="numeric"
+          maxLength={4}
+          value={currentAdminPin}
+          onChangeText={setCurrentAdminPin}
+          style={inputStyle}
+          textColor={colors.text}
+          theme={inputTheme}
+        />
+        <TextInput
+          label="New PIN"
+          mode="outlined"
+          secureTextEntry
+          keyboardType="numeric"
+          maxLength={4}
+          value={newAdminPin}
+          onChangeText={setNewAdminPin}
+          style={inputStyle}
+          textColor={colors.text}
+          theme={inputTheme}
+        />
+        <TextInput
+          label="Confirm new PIN"
+          mode="outlined"
+          secureTextEntry
+          keyboardType="numeric"
+          maxLength={4}
+          value={confirmAdminPin}
+          onChangeText={setConfirmAdminPin}
+          style={inputStyle}
+          textColor={colors.text}
+          theme={inputTheme}
+        />
+        <Button mode="contained" loading={savingAdminPin} onPress={handleChangeAdminPin} style={styles.actionBtn}>
+          Save Admin PIN
+        </Button>
+      </SectionCard>
 
       {/* ── Bluetooth Printer ── */}
       <SectionCard title="Bluetooth Printer">

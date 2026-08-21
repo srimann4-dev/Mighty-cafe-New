@@ -4,8 +4,8 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { Button, Surface, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { appConfig } from '@/config/appConfig';
 import { getStaff } from '@/db/repository';
+import { getAdminPin } from '@/services/adminPin';
 import { colors } from '@/theme';
 import type { StaffMember } from '@/types';
 
@@ -44,13 +44,14 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     [selectedStaffId, staff],
   );
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!selectedStaff) {
       Alert.alert('Select staff', 'Choose a staff member to continue.');
       return;
     }
     if (selectedStaff.role === 'Admin') {
-      if (adminPin !== appConfig.adminPin) {
+      const storedAdminPin = await getAdminPin();
+      if (adminPin !== storedAdminPin) {
         Alert.alert('Invalid PIN', 'Enter the correct admin PIN.');
         return;
       }
