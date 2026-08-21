@@ -45,13 +45,13 @@ export async function updateMenuItemImage(db: SQLiteDatabase, id: string, imageU
 
 export async function createMenuItem(
   db: SQLiteDatabase,
-  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode' | 'fulfillmentType'>,
+  payload: Pick<MenuItem, 'name' | 'price' | 'purchaseCost' | 'category' | 'barcode' | 'fulfillmentType'> & { stock?: number },
 ): Promise<void> {
   await db.runAsync(
     `INSERT INTO menu_items (id, name, price, purchase_cost, category, is_active, barcode, stock, fulfillment_type)
-     VALUES (?, ?, ?, ?, ?, 1, ?, 0, ?)`,
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     createId('menu'), payload.name, payload.price, payload.purchaseCost,
-    payload.category, payload.barcode ?? null, payload.fulfillmentType,
+    payload.category, payload.barcode ?? null, payload.stock ?? 0, payload.fulfillmentType,
   );
 }
 
@@ -63,6 +63,18 @@ export async function updateMenuItem(
     `UPDATE menu_items SET name=?, price=?, purchase_cost=?, category=?, is_active=?, barcode=?, fulfillment_type=? WHERE id=?`,
     payload.name, payload.price, payload.purchaseCost, payload.category,
     payload.isActive, payload.barcode ?? null, payload.fulfillmentType, payload.id,
+  );
+}
+
+export async function addMenuItemStock(
+  db: SQLiteDatabase,
+  menuItemId: string,
+  quantity: number,
+): Promise<void> {
+  await db.runAsync(
+    'UPDATE menu_items SET stock = MAX(stock + ?, 0) WHERE id = ?',
+    quantity,
+    menuItemId,
   );
 }
 
@@ -85,7 +97,8 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
       barcode,
       low_stock_threshold as lowStockThreshold,
       updated_at as updatedAt,
-      COALESCE(item_type, 'ingredient') as itemType
+      COALESCE(item_type, 'ingredient') as itemType,
+      COALESCE(avg_unit_cost, 0) as avgUnitCost
      FROM inventory_items
      ORDER BY name ASC`,
   );
@@ -94,11 +107,14 @@ export async function getInventoryItems(db: SQLiteDatabase): Promise<InventoryIt
 
 export async function createInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
+  payload: Pick<InventoryItem, 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & {
+    itemType?: 'ingredient' | 'product';
+    avgUnitCost?: number;
+  },
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at, item_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO inventory_items (id, name, quantity, unit, barcode, low_stock_threshold, updated_at, item_type, avg_unit_cost)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     createId('inv'),
     payload.name,
     payload.quantity,
@@ -107,16 +123,18 @@ export async function createInventoryItem(
     payload.lowStockThreshold,
     new Date().toISOString(),
     payload.itemType ?? 'ingredient',
+    payload.avgUnitCost ?? 0,
   );
 }
 
 export async function updateInventoryItem(
   db: SQLiteDatabase,
-  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product' },
+  payload: Pick<InventoryItem, 'id' | 'name' | 'quantity' | 'unit' | 'barcode' | 'lowStockThreshold'> & { itemType?: 'ingredient' | 'product'; avgUnitCost?: number },
 ): Promise<void> {
   await db.runAsync(
     `UPDATE inventory_items
-     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?, item_type = COALESCE(?, item_type)
+     SET name = ?, quantity = ?, unit = ?, barcode = ?, low_stock_threshold = ?, updated_at = ?,
+         item_type = COALESCE(?, item_type), avg_unit_cost = COALESCE(?, avg_unit_cost)
      WHERE id = ?`,
     payload.name,
     payload.quantity,
@@ -125,6 +143,7 @@ export async function updateInventoryItem(
     payload.lowStockThreshold,
     new Date().toISOString(),
     payload.itemType ?? null,
+    payload.avgUnitCost ?? null,
     payload.id,
   );
 }
@@ -211,14 +230,38 @@ export async function adjustInventoryQuantity(
   quantityChange: number,
   note: string,
   type: 'manual_adjustment' | 'stock_addition',
+  unitCost?: number,
 ): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), updated_at = ? WHERE id = ?',
-      quantityChange,
-      new Date().toISOString(),
+    const current = await db.getFirstAsync<{ quantity: number; avgUnitCost: number }>(
+      'SELECT quantity, COALESCE(avg_unit_cost, 0) as avgUnitCost FROM inventory_items WHERE id = ?',
       inventoryItemId,
     );
+    const currentQty = current?.quantity ?? 0;
+    const currentAvg = current?.avgUnitCost ?? 0;
+    const now = new Date().toISOString();
+
+    if (quantityChange > 0 && unitCost != null && unitCost > 0) {
+      const newQty = currentQty + quantityChange;
+      const newAvg = newQty > 0
+        ? (currentQty * currentAvg + quantityChange * unitCost) / newQty
+        : unitCost;
+      await db.runAsync(
+        'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), avg_unit_cost = ?, updated_at = ? WHERE id = ?',
+        quantityChange,
+        newAvg,
+        now,
+        inventoryItemId,
+      );
+    } else {
+      await db.runAsync(
+        'UPDATE inventory_items SET quantity = MAX(quantity + ?, 0), updated_at = ? WHERE id = ?',
+        quantityChange,
+        now,
+        inventoryItemId,
+      );
+    }
+
     await db.runAsync(
       `INSERT INTO stock_movements (id, inventory_item_id, type, quantity_change, note, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -227,7 +270,7 @@ export async function adjustInventoryQuantity(
       type,
       quantityChange,
       note,
-      new Date().toISOString(),
+      now,
     );
   });
 }
@@ -641,13 +684,14 @@ export async function addStockByName(
   inventoryName: string,
   quantity: number,
   note: string,
+  unitCost?: number,
 ): Promise<boolean> {
   const item = await db.getFirstAsync<{ id: string }>(
     `SELECT id FROM inventory_items WHERE LOWER(name) = LOWER(?) LIMIT 1`,
     inventoryName,
   );
   if (!item) return false;
-  await adjustInventoryQuantity(db, item.id, Math.abs(quantity), note, 'stock_addition');
+  await adjustInventoryQuantity(db, item.id, Math.abs(quantity), note, 'stock_addition', unitCost);
   return true;
 }
 
@@ -687,7 +731,7 @@ export async function resetAllData(db: SQLiteDatabase): Promise<void> {
     await db.runAsync('DELETE FROM expenses');
 
     // Reset inventory quantities to 0
-    await db.runAsync('UPDATE inventory_items SET quantity = 0, updated_at = ?', new Date().toISOString());
+    await db.runAsync('UPDATE inventory_items SET quantity = 0, avg_unit_cost = 0, updated_at = ?', new Date().toISOString());
     // Reset menu item stock to 0
     await db.runAsync('UPDATE menu_items SET stock = 0');
   });
@@ -1037,6 +1081,123 @@ export async function getItemActualCosts(db: SQLiteDatabase): Promise<ItemActual
   }
 
   return results;
+}
+
+export interface InventoryHoldingCost {
+  id: string;
+  name: string;
+  itemType: 'ingredient' | 'product';
+  quantity: number;
+  unit: string;
+  unitCost: number | null;
+  holdingValue: number;
+}
+
+async function estimateUnitCostFromPurchases(
+  db: SQLiteDatabase,
+  inventoryItemId: string,
+  inventoryName: string,
+): Promise<number | null> {
+  const matched = await db.getFirstAsync<{ avgPrice: number | null }>(
+    `SELECT
+      CASE
+        WHEN SUM(ABS(sm.quantity_change)) > 0
+        THEN SUM(e.amount) / SUM(ABS(sm.quantity_change))
+        ELSE NULL
+      END as avgPrice
+     FROM stock_movements sm
+     LEFT JOIN expenses e ON
+       (
+         LOWER(e.description) LIKE LOWER(?) OR
+         LOWER(?) LIKE '%' || LOWER(e.description) || '%'
+       ) AND
+       substr(e.created_at, 1, 10) = substr(sm.created_at, 1, 10)
+     WHERE sm.inventory_item_id = ? AND sm.type = 'stock_addition'`,
+    `%${inventoryName}%`,
+    inventoryName,
+    inventoryItemId,
+  );
+  if (matched?.avgPrice != null && Number.isFinite(matched.avgPrice) && matched.avgPrice > 0) {
+    return matched.avgPrice;
+  }
+
+  const notes = await db.getAllAsync<{ quantityChange: number; note: string }>(
+    `SELECT quantity_change as quantityChange, note
+     FROM stock_movements
+     WHERE inventory_item_id = ? AND type = 'stock_addition'`,
+    inventoryItemId,
+  );
+  let totalQty = 0;
+  let totalAmount = 0;
+  for (const row of notes) {
+    const rupeeMatch = row.note.match(/₹\s*([0-9]+(?:\.[0-9]+)?)/);
+    const qty = Math.abs(row.quantityChange);
+    if (!rupeeMatch || qty <= 0) continue;
+    totalQty += qty;
+    totalAmount += Number(rupeeMatch[1]);
+  }
+  if (totalQty > 0 && totalAmount > 0) {
+    return totalAmount / totalQty;
+  }
+  return null;
+}
+
+export async function getInventoryHoldingCosts(db: SQLiteDatabase): Promise<InventoryHoldingCost[]> {
+  const items = await db.getAllAsync<{
+    id: string;
+    name: string;
+    itemType: 'ingredient' | 'product';
+    quantity: number;
+    unit: string;
+    avgUnitCost: number;
+  }>(
+    `SELECT
+      id,
+      name,
+      COALESCE(item_type, 'ingredient') as itemType,
+      quantity,
+      unit,
+      COALESCE(avg_unit_cost, 0) as avgUnitCost
+     FROM inventory_items
+     ORDER BY name ASC`,
+  );
+
+  const menuCosts = await db.getAllAsync<{ name: string; purchaseCost: number }>(
+    `SELECT name, purchase_cost as purchaseCost FROM menu_items WHERE purchase_cost > 0`,
+  );
+  const menuCostByName = new Map(
+    menuCosts.map((row) => [row.name.trim().toLowerCase(), row.purchaseCost]),
+  );
+
+  const rows: InventoryHoldingCost[] = [];
+
+  for (const item of items) {
+    let unitCost: number | null = item.avgUnitCost > 0 ? item.avgUnitCost : null;
+
+    if (unitCost == null) {
+      unitCost = await estimateUnitCostFromPurchases(db, item.id, item.name);
+    }
+
+    if ((unitCost == null || unitCost <= 0) && item.itemType === 'product') {
+      const menuCost = menuCostByName.get(item.name.trim().toLowerCase());
+      if (menuCost != null && menuCost > 0) {
+        unitCost = menuCost;
+      }
+    }
+
+    const holdingValue = unitCost != null && item.quantity > 0 ? unitCost * item.quantity : 0;
+    rows.push({
+      id: item.id,
+      name: item.name,
+      itemType: item.itemType,
+      quantity: item.quantity,
+      unit: item.unit,
+      unitCost,
+      holdingValue,
+    });
+  }
+
+  return rows;
 }
 
 export async function getTodayAttendance(db: SQLiteDatabase): Promise<AttendanceRecord[]> {

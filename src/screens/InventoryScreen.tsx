@@ -225,6 +225,17 @@ export function InventoryScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" />
       </Pressable>
 
+      <Pressable style={styles.costBtn} onPress={() => navigation.navigate('InventoryCost')}>
+        <View style={styles.costBtnIcon}>
+          <MaterialCommunityIcons name="cash-multiple" size={22} color="#fff" />
+        </View>
+        <View style={styles.purchaseBtnText}>
+          <Text style={styles.costBtnTitle}>Inventory Cost</Text>
+          <Text style={styles.costBtnSub}>See purchase value of stock on hand</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" />
+      </Pressable>
+
       <Pressable style={styles.auditBtn} onPress={() => navigation.navigate('InventoryAudit')}>
         <View style={styles.auditBtnIcon}>
           <MaterialCommunityIcons name="clipboard-check-outline" size={22} color={colors.primary} />
@@ -557,6 +568,10 @@ const styles = StyleSheet.create({
   purchaseBtnText: { flex: 1, gap: 2 },
   purchaseBtnTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
   purchaseBtnSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  costBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.accent, borderRadius: 18, padding: 16, marginBottom: 4 },
+  costBtnIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  costBtnTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  costBtnSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)' },
   auditBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.primary + '0D', borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: colors.primary + '44' },
   auditBtnIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
   auditBtnTitle: { fontSize: 15, fontWeight: '800', color: colors.primary },
