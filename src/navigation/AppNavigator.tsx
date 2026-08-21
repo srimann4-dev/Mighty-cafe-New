@@ -31,10 +31,10 @@ const navigationTheme = {
     ...DefaultTheme.colors,
     background: '#F5F5F5',
     card: '#FFFFFF',
-    primary: '#2ECC71',
+    primary: '#E74C3C',
     text: '#1A1A1A',
     border: '#EBEBEB',
-    notification: '#2ECC71',
+    notification: '#E74C3C',
   },
 };
 
@@ -80,7 +80,7 @@ export function AppNavigator() {
         <Tab.Navigator
           screenOptions={({ route }) => ({
             headerShown: false,
-            tabBarActiveTintColor: '#2ECC71',
+            tabBarActiveTintColor: '#E74C3C',
             tabBarInactiveTintColor: '#888888',
             tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
             tabBarStyle: {
