@@ -1,16 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Button, Divider, Modal, Portal, SegmentedButtons, Surface, Switch, Text, TextInput } from 'react-native-paper';
+import { Button, Divider, Portal, SegmentedButtons, Switch, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { ScreenShell } from '@/components/ScreenShell';
 import { SectionCard } from '@/components/SectionCard';
+import { Sheet } from '@/components/Sheet';
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal';
 import { useProducts } from '@/hooks/useProducts';
 import {
@@ -19,16 +19,16 @@ import {
   replaceMenuItemRecipeLinks,
   getInventoryItems,
   getProductSections,
-  createProductSection,
-  deleteProductSection,
   deleteMenuItems,
   type ProductSection,
 } from '@/db/repository';
-import { BRAND_PRODUCT_SECTIONS, DEFAULT_PRODUCT_CATEGORIES } from '@/config/productCategories';
+import { DEFAULT_PRODUCT_CATEGORIES } from '@/config/productCategories';
 import { colors } from '@/theme';
 import { inputTheme, inputStyle } from '@/theme/inputTheme';
 import type { MenuItem, InventoryItem } from '@/types';
 import type { ProductsStackParamList } from '@/navigation/ProductsNavigator';
+import { buildDisplaySections, partitionMenuItems } from '@/screens/products/displaySections';
+import { parseMenuImportRows } from '@/screens/products/menuItemImport';
 
 type ProductDraft = {
   id?: string; name: string; category: string;
@@ -39,27 +39,11 @@ type ProductDraft = {
 const emptyDraft: ProductDraft = { name: '', category: 'Cold Drinks', price: '', purchaseCost: '', isActive: '1', barcode: '', fulfillmentType: 'on_demand', imageUri: null };
 type RecipeDraft = Record<string, string>;
 
-// Reusable modal wrapper that positions content at top so keyboard slides under it
-function Sheet({ visible, onDismiss, children }: { visible: boolean; onDismiss: () => void; children: React.ReactNode }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modalOverlay}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Surface style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]} elevation={0}>
-          <View style={styles.sheetHandle} />
-          {children}
-        </Surface>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-export function ProductsScreen() {
+export function MenuItemsScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation<NativeStackNavigationProp<ProductsStackParamList>>();
   const { menuItems, reload, saveMenuItem } = useProducts();
 
-  // ── UI state ──
   const [dialogVisible, setDialogVisible] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [draft, setDraft] = useState<ProductDraft>(emptyDraft);
@@ -68,7 +52,6 @@ export function ProductsScreen() {
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
 
-  // ── Recipe modal ──
   const [recipeModalVisible, setRecipeModalVisible] = useState(false);
   const [recipeItem, setRecipeItem] = useState<MenuItem | null>(null);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -77,29 +60,22 @@ export function ProductsScreen() {
   const [savingRecipe, setSavingRecipe] = useState(false);
   const [recipeSearch, setRecipeSearch] = useState('');
 
-  // ── Produce modal ──
   const [produceModalVisible, setProduceModalVisible] = useState(false);
   const [produceItem, setProduceItem] = useState<MenuItem | null>(null);
   const [produceQty, setProduceQty] = useState('');
   const [produceMode, setProduceMode] = useState<'recipe' | 'manual'>('recipe');
   const [isProducing, setIsProducing] = useState(false);
 
-  // ── Modify stock modal ──
   const [stockModalVisible, setStockModalVisible] = useState(false);
   const [stockItem, setStockItem] = useState<MenuItem | null>(null);
   const [stockQty, setStockQty] = useState('');
   const [isSavingStock, setIsSavingStock] = useState(false);
 
-  // ── Sections — loaded from DB, persisted across restarts ──
   const [dbSections, setDbSections] = useState<ProductSection[]>([]);
-  const [newSectionModalVisible, setNewSectionModalVisible] = useState(false);
-  const [newSectionName, setNewSectionName] = useState('');
-  const [isSavingSection, setIsSavingSection] = useState(false);
   const [isImportingMenuItems, setIsImportingMenuItems] = useState(false);
 
   const loadSections = useCallback(async () => {
-    const rows = await getProductSections(db);
-    setDbSections(rows);
+    setDbSections(await getProductSections(db));
   }, [db]);
 
   useFocusEffect(useCallback(() => {
@@ -107,34 +83,15 @@ export function ProductsScreen() {
     loadSections();
   }, [reload, loadSections]));
 
-  // Built-in sections + DB-persisted custom sections
-  const builtInCategories = new Set(BRAND_PRODUCT_SECTIONS.map((s) => s.category));
-  const allSections: Array<{ name: string; category: string; icon: string; color: string; dbId?: string }> = [
-    ...BRAND_PRODUCT_SECTIONS,
-    // DB sections that aren't already in built-ins
-    ...dbSections
-      .filter((s) => !builtInCategories.has(s.category))
-      .map((s) => ({ name: s.name, category: s.category, icon: s.icon, color: s.color, dbId: s.id })),
-  ];
+  const cafeMenuItems = useMemo(() => {
+    const sections = buildDisplaySections(dbSections, menuItems);
+    return partitionMenuItems(menuItems, sections).cafeMenuItems;
+  }, [dbSections, menuItems]);
 
-  // Also auto-surface any pre_made items whose category isn't in any section yet
-  const knownCats = new Set(allSections.map((s) => s.category));
-  const palette = ['#E67E22', '#9B59B6', '#27AE60', '#E74C3C', '#2980B9', '#F39C12', '#1ABC9C', '#16A085'];
-  const autoSections = Array.from(
-    new Set(
-      menuItems
-        .filter((item) => item.fulfillmentType === 'pre_made' && !knownCats.has(item.category))
-        .map((item) => item.category),
-    ),
-  ).map((cat, i) => ({ name: cat, category: cat, icon: 'tag-outline' as const, color: palette[i % palette.length] }));
-
-  const allDisplaySections = [...allSections, ...autoSections];
-  const brandCategories = allDisplaySections.map((s) => s.category);
-  const regularMenuItems = menuItems.filter((item) => !brandCategories.includes(item.category));
   const categoryOptions = Array.from(
     new Set([
       ...DEFAULT_PRODUCT_CATEGORIES,
-      ...regularMenuItems.map((item) => item.category),
+      ...cafeMenuItems.map((item) => item.category),
       ...customCategories,
     ].filter(Boolean)),
   );
@@ -266,48 +223,6 @@ export function ProductsScreen() {
     }
   }
 
-  function parseDelimitedLine(line: string): string[] {
-    const fields: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-        else inQuotes = !inQuotes;
-      } else if ((ch === ',' || ch === '\t') && !inQuotes) {
-        fields.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    fields.push(current.trim());
-    return fields;
-  }
-
-  function parseSpreadsheetXml(raw: string): string[][] {
-    const rows = [...raw.matchAll(/<Row[\s\S]*?<\/Row>/gi)];
-    return rows.map((rowMatch) => {
-      const cells = [...rowMatch[0].matchAll(/<Data[^>]*>([\s\S]*?)<\/Data>/gi)];
-      return cells.map((cell) => cell[1]
-        .replace(/<[^>]+>/g, '')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .trim());
-    }).filter((row) => row.length > 0);
-  }
-
-  function parseMenuImportRows(raw: string): string[][] {
-    if (raw.includes('<Workbook') && raw.includes('<Row')) {
-      return parseSpreadsheetXml(raw);
-    }
-    return raw.split(/\r?\n/).filter((line) => line.trim()).map(parseDelimitedLine);
-  }
-
   async function handleImportMenuItems() {
     setIsImportingMenuItems(true);
     try {
@@ -400,47 +315,8 @@ export function ProductsScreen() {
     }
   }
 
-  async function handleAddSection() {
-    const name = newSectionName.trim();
-    if (!name) return;
-    const alreadyExists = allDisplaySections.some(
-      (s) => s.name.toLowerCase() === name.toLowerCase(),
-    );
-    if (alreadyExists) {
-      Alert.alert('Already exists', `A section named "${name}" already exists.`);
-      return;
-    }
-    setIsSavingSection(true);
-    try {
-      const color = palette[dbSections.length % palette.length];
-      await createProductSection(db, { name, category: name, icon: 'tag-outline', color });
-      await loadSections();
-      setNewSectionName('');
-      setNewSectionModalVisible(false);
-    } finally {
-      setIsSavingSection(false);
-    }
-  }
-
-  async function handleDeleteSection(id: string, sectionName: string) {
-    Alert.alert(
-      `Delete "${sectionName}"?`,
-      'The section will be removed. Items in this section will still exist in Menu Items.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteProductSection(db, id);
-            await loadSections();
-          },
-        },
-      ],
-    );
-  }
-
-  async function openRecipeFromDraft() {    if (!draft.id) return;
+  async function openRecipeFromDraft() {
+    if (!draft.id) return;
     const item = menuItems.find((row) => row.id === draft.id);
     if (!item) return;
     setDialogVisible(false);
@@ -500,59 +376,13 @@ export function ProductsScreen() {
   }
 
   return (
-    <ScreenShell title="Products" subtitle="Set recipes, record production, manage items.">
-      <SectionCard title="Ready-to-Sell Brand Items">
-        <View style={styles.brandGrid}>
-          {allDisplaySections.map((brand) => {
-            const brandItems = menuItems.filter((item) => item.category === brand.category);
-            const stockCount = brandItems.reduce((sum, item) => sum + (item.stock ?? 0), 0);
-            const isCustom = 'dbId' in brand && brand.dbId;
-            return (
-              <Pressable
-                key={brand.category}
-                style={styles.brandCard}
-                onPress={() => navigation.navigate('BrandProducts', { brandName: brand.name, category: brand.category })}
-              >
-                <View style={[styles.brandIconBox, { backgroundColor: brand.color + '22' }]}>
-                  <MaterialCommunityIcons name={brand.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={24} color={brand.color} />
-                </View>
-                <View style={styles.infoBlock}>
-                  <Text variant="titleSmall" style={styles.itemName}>{brand.name}</Text>
-                  <Text variant="bodySmall" style={styles.muted}>
-                    {brandItems.length} varieties · {stockCount} ready
-                  </Text>
-                  <Text variant="bodySmall" style={styles.brandHint}>Prebatch items, no production recipe</Text>
-                </View>
-                <View style={styles.brandCardRight}>
-                  {isCustom ? (
-                    <Pressable
-                      hitSlop={8}
-                      onPress={(e) => { e.stopPropagation(); handleDeleteSection((brand as any).dbId, brand.name); }}
-                      style={styles.deleteSectionBtn}
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger} />
-                    </Pressable>
-                  ) : null}
-                  <MaterialCommunityIcons name="chevron-right" size={22} color={colors.muted} />
-                </View>
-              </Pressable>
-            );
-          })}
-          {/* Add new section button */}
-          <Pressable style={styles.addSectionBtn} onPress={() => { setNewSectionName(''); setNewSectionModalVisible(true); }}>
-            <View style={styles.addSectionIcon}>
-              <MaterialCommunityIcons name="plus" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.infoBlock}>
-              <Text variant="titleSmall" style={[styles.itemName, { color: colors.primary }]}>Add New Section</Text>
-              <Text variant="bodySmall" style={styles.muted}>e.g. Biscuits, Chips, Energy Drinks</Text>
-            </View>
-          </Pressable>
-        </View>
-      </SectionCard>
-
-      <SectionCard title="Menu Items">
-        {regularMenuItems.map((item, index) => (
+    <ScreenShell
+      title="Menu items"
+      subtitle="Recipes, production, and cafe menu stock."
+      onBack={() => navigation.goBack()}
+    >
+      <SectionCard title="Cafe menu">
+        {cafeMenuItems.map((item, index) => (
           <View key={item.id}>
             {index > 0 ? <Divider style={styles.divider} /> : null}
             <View style={styles.row}>
@@ -620,51 +450,6 @@ export function ProductsScreen() {
       <BarcodeScannerModal visible={scannerVisible} onScanned={handleProductBarcodeScanned} onDismiss={() => setScannerVisible(false)} />
 
       <Portal>
-        {/* ── Add New Brand Section Modal ── */}
-        <Sheet visible={newSectionModalVisible} onDismiss={() => setNewSectionModalVisible(false)}>
-          <View style={styles.sheetHeader}>
-            <View style={[styles.sheetIconBox, { backgroundColor: colors.primary + '22' }]}>
-              <MaterialCommunityIcons name="plus-circle-outline" size={26} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="headlineSmall" style={styles.sheetTitle}>Add New Section</Text>
-              <Text variant="bodyMedium" style={styles.muted}>Creates a new ready-to-sell category</Text>
-            </View>
-          </View>
-          <View style={styles.infoBox}>
-            <MaterialCommunityIcons name="information-outline" size={16} color={colors.accent} />
-            <Text variant="bodySmall" style={[styles.muted, { flex: 1, lineHeight: 20 }]}>
-              Use this for any brand or product type you stock and sell as-is — Biscuits, Chips, Energy Drinks, etc.
-            </Text>
-          </View>
-          <TextInput
-            label="Section name (e.g. Biscuits, Chips)"
-            mode="outlined"
-            value={newSectionName}
-            onChangeText={setNewSectionName}
-            style={inputStyle}
-            textColor={colors.text}
-            theme={inputTheme}
-            returnKeyType="done"
-            onSubmitEditing={handleAddSection}
-            autoFocus
-          />
-          <View style={styles.sheetActions}>
-            <Button onPress={() => setNewSectionModalVisible(false)} textColor={colors.muted}>Cancel</Button>
-            <Button
-              mode="contained"
-              onPress={handleAddSection}
-              disabled={!newSectionName.trim() || isSavingSection}
-              loading={isSavingSection}
-              icon="plus"
-              style={styles.primaryBtn}
-            >
-              Add Section
-            </Button>
-          </View>
-        </Sheet>
-
-        {/* ── Recipe Modal ── */}
         <Sheet visible={recipeModalVisible} onDismiss={() => setRecipeModalVisible(false)}>
           <View style={styles.sheetHeader}>
             <View style={[styles.sheetIconBox, { backgroundColor: colors.accent + '22' }]}>
@@ -755,7 +540,6 @@ export function ProductsScreen() {
           </View>
         </Sheet>
 
-        {/* ── Produce Modal ── */}
         <Sheet visible={produceModalVisible} onDismiss={() => setProduceModalVisible(false)}>
           <View style={styles.sheetHeader}>
             <View style={[styles.sheetIconBox, { backgroundColor: colors.primary + '22' }]}>
@@ -811,7 +595,6 @@ export function ProductsScreen() {
           </View>
         </Sheet>
 
-        {/* ── Modify Stock Modal ── */}
         <Sheet visible={stockModalVisible} onDismiss={() => setStockModalVisible(false)}>
           <View style={styles.sheetHeader}>
             <View style={[styles.sheetIconBox, { backgroundColor: colors.primary + '22' }]}>
@@ -864,12 +647,11 @@ export function ProductsScreen() {
           </View>
         </Sheet>
 
-        {/* ── Edit Product Modal ── */}        <Sheet visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
+        <Sheet visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
           <Text variant="headlineSmall" style={styles.sheetTitle}>{draft.id ? 'Edit Product' : 'Add Product'}</Text>
           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.formScroll}>
             <TextInput label="Item Name" mode="outlined" value={draft.name} onChangeText={(v) => setDraft((c) => ({ ...c, name: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} />
 
-            {/* Category dropdown */}
             <View>
               <Text style={styles.fieldLabel}>Category</Text>
               <Pressable
@@ -891,7 +673,6 @@ export function ProductsScreen() {
                       {draft.category === cat && <MaterialCommunityIcons name="check" size={16} color={colors.primary} />}
                     </Pressable>
                   ))}
-                  {/* Add new category */}
                   {showAddCategory ? (
                     <View style={styles.addCategoryRow}>
                       <TextInput
@@ -928,7 +709,6 @@ export function ProductsScreen() {
             </View>
             <SegmentedButtons value={draft.isActive} onValueChange={(v) => setDraft((c) => ({ ...c, isActive: v as '1' | '0' }))} buttons={[{ value: '1', label: 'Visible in Billing' }, { value: '0', label: 'Hidden' }]} theme={{ colors: { secondaryContainer: colors.primary + '33', onSecondaryContainer: colors.primary, outline: colors.border } }} />
 
-            {/* Fulfillment type */}
             <View style={styles.fulfillmentSection}>
               <View style={styles.fulfillmentHeader}>
                 <MaterialCommunityIcons name="information-outline" size={16} color={colors.accent} />
@@ -980,14 +760,6 @@ export function ProductsScreen() {
 
 const styles = StyleSheet.create({
   divider: { backgroundColor: colors.border, marginVertical: 10 },
-  brandGrid: { gap: 10 },
-  brandCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  brandIconBox: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  brandHint: { color: colors.accent, fontSize: 12, fontWeight: '600' },
-  brandCardRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  deleteSectionBtn: { padding: 4, borderRadius: 8, backgroundColor: colors.danger + '15' },
-  addSectionBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderWidth: 1.5, borderColor: colors.primary + '44', borderRadius: 16, paddingHorizontal: 12, borderStyle: 'dashed' },
-  addSectionIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 8 },
   iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   infoBlock: { flex: 1, gap: 4 },
@@ -1010,26 +782,13 @@ const styles = StyleSheet.create({
   addProductText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   importProductBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: colors.primary + '66', backgroundColor: colors.primary + '08', borderRadius: 14, paddingVertical: 14, marginTop: 10 },
   importProductText: { color: colors.primary, fontSize: 15, fontWeight: '800' },
-
-  // Modal positioned at top so keyboard slides under it
-  modalOverlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 48, paddingHorizontal: 16 },
-  sheet: {
-    backgroundColor: colors.card,
-    borderRadius: 32,
-    padding: 24, gap: 18,
-    borderWidth: 1, borderColor: colors.border,
-    maxHeight: '90%',
-  },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 4 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   sheetIconBox: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   sheetTitle: { color: colors.text, fontWeight: '800' },
   sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: 4 },
   primaryBtn: { borderRadius: 14 },
-
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: colors.accent + '11', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.accent + '33' },
   bigInput: { fontSize: 16 },
-
   recipeScroll: { maxHeight: 380 },
   recipeList: { gap: 12, paddingBottom: 8 },
   recipeRow: { backgroundColor: colors.cardAlt, borderRadius: 18, padding: 16, gap: 4, borderWidth: 1, borderColor: colors.border },
@@ -1040,7 +799,6 @@ const styles = StyleSheet.create({
   recipeNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   inventoryTypeBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   inventoryTypeText: { fontSize: 11, fontWeight: '700' },
-
   form: { gap: 14, paddingBottom: 8 },
   formScroll: { maxHeight: 360 },
   fieldLabel: { fontSize: 12, color: colors.muted, marginBottom: 4, marginLeft: 2, fontWeight: '600' },

@@ -1,6 +1,7 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme';
 
@@ -8,9 +9,10 @@ interface ScreenShellProps extends PropsWithChildren {
   title: string;
   subtitle?: string;
   headerRight?: ReactNode;
+  onBack?: () => void;
 }
 
-export function ScreenShell({ children, title, subtitle, headerRight }: ScreenShellProps) {
+export function ScreenShell({ children, title, subtitle, headerRight, onBack }: ScreenShellProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -27,7 +29,14 @@ export function ScreenShell({ children, title, subtitle, headerRight }: ScreenSh
         keyboardDismissMode="on-drag"
       >
         <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>{title}</Text>
+          <View style={styles.titleRow}>
+            {onBack ? (
+              <Pressable onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
+                <MaterialCommunityIcons name="arrow-left" size={26} color={colors.text} />
+              </Pressable>
+            ) : null}
+            <Text variant="headlineMedium" style={styles.title}>{title}</Text>
+          </View>
           {subtitle ? <Text variant="bodyMedium" style={styles.subtitle}>{subtitle}</Text> : null}
           {headerRight ? <View style={styles.headerActions}>{headerRight}</View> : null}
         </View>
@@ -49,7 +58,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  title: { color: colors.text, fontWeight: '800' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  title: { color: colors.text, fontWeight: '800', flex: 1 },
   subtitle: { color: colors.muted },
   headerActions: {
     flexDirection: 'row',
