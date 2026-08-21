@@ -112,8 +112,13 @@ export function IngredientsPurchaseScreen({ navigation }: Props) {
       await createExpense(db, { description: selectedItem.label, amount: parsedAmount, category: 'Ingredients' });
       if (selectedItem.inventoryName) {
         const { convertedQty, baseUnit } = toBaseUnit(parsedQty, unit);
-        const added = await addStockByName(db, selectedItem.inventoryName, convertedQty,
-          `Purchased ${parsedQty}${unit} → ${convertedQty}${baseUnit} — ₹${parsedAmount}`);
+        const added = await addStockByName(
+          db,
+          selectedItem.inventoryName,
+          convertedQty,
+          `Purchased ${parsedQty}${unit} → ${convertedQty}${baseUnit} — ₹${parsedAmount}`,
+          convertedQty > 0 ? parsedAmount / convertedQty : undefined,
+        );
         const conversionNote = unit !== baseUnit
           ? `\n${parsedQty} ${unit} = ${convertedQty} ${baseUnit} added to inventory.`
           : `\n+${convertedQty} ${baseUnit} added to ${selectedItem.inventoryName}.`;

@@ -47,6 +47,7 @@ export interface InventoryItem {
   lowStockThreshold: number;
   updatedAt: string;
   itemType: 'ingredient' | 'product';
+  avgUnitCost?: number;
 }
 
 export interface RecipeRow {
