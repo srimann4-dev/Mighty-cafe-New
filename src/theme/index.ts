@@ -1,9 +1,9 @@
 import { MD3LightTheme, type MD3Theme } from 'react-native-paper';
 
 export const colors = {
-  primary: '#2ECC71',
-  primaryDark: '#27AE60',
-  primaryLight: '#E8FAF0',
+  primary: '#E74C3C',
+  primaryDark: '#C0392B',
+  primaryLight: '#FDECEA',
   secondary: '#6C63FF',
   background: '#F5F5F5',
   card: '#FFFFFF',
@@ -17,11 +17,11 @@ export const colors = {
   accentBlue: '#6C63FF',
   accentPurple: '#6C63FF',
   accentMuted: '#F0EEFF',
-  accentSoft: '#E8FAF0',
+  accentSoft: '#FDECEA',
   success: '#2ECC71',
   danger: '#E74C3C',
   warning: '#F39C12',
-  chartColors: ['#2ECC71', '#6C63FF', '#F39C12', '#E74C3C', '#3498DB', '#1ABC9C'],
+  chartColors: ['#E74C3C', '#6C63FF', '#F39C12', '#2ECC71', '#3498DB', '#1ABC9C'],
 };
 
 export const appTheme: MD3Theme = {

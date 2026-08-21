@@ -3,7 +3,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LoginScreen } from '@/screens/LoginScreen';
@@ -32,23 +31,11 @@ const navigationTheme = {
     ...DefaultTheme.colors,
     background: '#F5F5F5',
     card: '#FFFFFF',
-    primary: '#2ECC71',
+    primary: '#E74C3C',
     text: '#1A1A1A',
     border: '#EBEBEB',
-    notification: '#2ECC71',
+    notification: '#E74C3C',
   },
-};
-
-const ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  Billing: 'cash-register',
-  Products: 'food-outline',
-  Inventory: 'archive-outline',
-  Reports: 'file-chart-outline',
-  Expenses: 'receipt',
-  'P&L': 'chart-line',
-  Attendance: 'fingerprint',
-  Staff: 'account-group-outline',
-  Settings: 'cog-outline',
 };
 
 export function AppNavigator() {
@@ -82,9 +69,6 @@ export function AppNavigator() {
     login({ staffId: staff.id, name: staff.name, role: staff.role });
   }
 
-  const bottomPad = Math.max(insets.bottom, 8);
-  const tabBarHeight = 58 + bottomPad;
-
   return (
     <NavigationContainer theme={navigationTheme}>
       <OpeningBalanceModal
@@ -96,25 +80,30 @@ export function AppNavigator() {
         <Tab.Navigator
           screenOptions={({ route }) => ({
             headerShown: false,
-            tabBarHideOnKeyboard: true,
-            tabBarActiveTintColor: colors.primaryDark,
-            tabBarInactiveTintColor: '#9AA0A6',
-            tabBarLabelStyle: styles.tabLabel,
-            tabBarItemStyle: styles.tabItem,
-            tabBarStyle: [
-              styles.tabBar,
-              {
-                height: tabBarHeight,
-                paddingBottom: bottomPad,
-              },
-            ],
-            tabBarIcon: ({ color, focused }) => {
-              const name = ICON_MAP[route.name] ?? 'circle';
-              return (
-                <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                  <MaterialCommunityIcons name={name} size={focused ? 22 : 20} color={color} />
-                </View>
-              );
+            tabBarActiveTintColor: '#E74C3C',
+            tabBarInactiveTintColor: '#888888',
+            tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+            tabBarStyle: {
+              height: 64 + insets.bottom,
+              paddingTop: 6,
+              paddingBottom: insets.bottom + 8,
+              backgroundColor: '#FFFFFF',
+              borderTopColor: '#EBEBEB',
+              borderTopWidth: 1,
+            },
+            tabBarIcon: ({ color, size }) => {
+              const iconMap: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
+                Billing: 'cash-register',
+                Products: 'food-outline',
+                Inventory: 'archive-outline',
+                Reports: 'file-chart-outline',
+                Expenses: 'receipt',
+                'P&L': 'chart-line',
+                Attendance: 'fingerprint',
+                Staff: 'account-group-outline',
+                Settings: 'cog-outline',
+              };
+              return <MaterialCommunityIcons name={iconMap[route.name] ?? 'circle'} size={size} color={color} />;
             },
           })}
         >
@@ -134,38 +123,3 @@ export function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ECECEC',
-    paddingTop: 6,
-    elevation: 12,
-    shadowColor: '#0F172A',
-    shadowOpacity: Platform.OS === 'ios' ? 0.1 : 0.14,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: -3 },
-  },
-  tabItem: {
-    paddingTop: 2,
-  },
-  tabLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.15,
-    marginTop: 1,
-    marginBottom: 1,
-  },
-  iconWrap: {
-    minWidth: 44,
-    height: 28,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrapActive: {
-    backgroundColor: colors.primaryLight,
-  },
-});
