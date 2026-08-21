@@ -1,7 +1,8 @@
 /**
- * BrandProductsScreen — for pre-stocked brand items like Arun Ice Cream, Milky Mist etc.
- * Items here are ready-to-sell (no production needed).
- * Add items by scanning barcode or entering manually.
+ * BrandProductsScreen — ready-to-sell items for a brand/section
+ * (e.g. Arun Ice Cream, Milky Mist). Add and edit items manually.
+ * Purchases are recorded later from Inventory Purchase.
+ * Barcode is optional on the add/edit form.
  */
 import { useCallback, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -46,10 +47,10 @@ export function BrandProductsScreen({ route, navigation }: Props) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  function openAdd(barcode?: string) {
+  function openAdd() {
     setEditingId(null);
     setEditingCategory(category);
-    setForm({ ...emptyForm, barcode: barcode ?? '' });
+    setForm(emptyForm);
     setFormVisible(true);
   }
 
@@ -140,28 +141,11 @@ export function BrandProductsScreen({ route, navigation }: Props) {
     }
   }
 
-  async function handleBarcodeScanned(barcode: string) {
+  function handleBarcodeScanned(barcode: string) {
     const scannedBarcode = barcode.trim();
     setScannerVisible(false);
     if (!scannedBarcode) return;
-
-    const allItems = await getAllMenuItems(db);
-    const existing = allItems.find((i) => i.barcode === scannedBarcode);
-    if (existing) {
-      Alert.alert(
-        'Existing item found',
-        `${existing.name} already uses this barcode.\n\nCurrent stock: ${existing.stock}. Do you want to update its count?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Update Count',
-            onPress: () => openEdit(existing),
-          },
-        ],
-      );
-      return;
-    }
-    openAdd(scannedBarcode);
+    setForm((current) => ({ ...current, barcode: scannedBarcode }));
   }
 
   return (
@@ -183,10 +167,6 @@ export function BrandProductsScreen({ route, navigation }: Props) {
             <MaterialCommunityIcons name={selectionMode ? 'close' : 'checkbox-multiple-marked-outline'} size={18} color={selectionMode ? colors.danger : colors.primary} />
           </Pressable>
         ) : null}
-        <Pressable style={styles.scanBtn} onPress={() => setScannerVisible(true)}>
-          <MaterialCommunityIcons name="barcode-scan" size={20} color="#fff" />
-          <Text style={styles.scanBtnText}>Scan</Text>
-        </Pressable>
       </View>
 
       {/* Items list */}
@@ -197,9 +177,9 @@ export function BrandProductsScreen({ route, navigation }: Props) {
         ItemSeparatorComponent={() => <Divider style={styles.divider} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <MaterialCommunityIcons name="barcode-scan" size={48} color={colors.muted} />
+            <MaterialCommunityIcons name="package-variant-closed" size={48} color={colors.muted} />
             <Text style={styles.emptyTitle}>No items yet</Text>
-            <Text style={styles.emptySub}>Tap Scan to add items by barcode, or tap + to add manually.</Text>
+            <Text style={styles.emptySub}>Tap Add Item to create items for this section. Purchases will be recorded from Inventory Purchase later.</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -234,7 +214,7 @@ export function BrandProductsScreen({ route, navigation }: Props) {
         }}
       />
 
-      {/* Add manually button */}
+      {/* Add item button */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         {selectionMode ? (
           <Pressable
@@ -248,12 +228,12 @@ export function BrandProductsScreen({ route, navigation }: Props) {
         ) : (
           <Pressable style={styles.addBtn} onPress={() => openAdd()}>
             <MaterialCommunityIcons name="plus" size={20} color="#fff" />
-            <Text style={styles.addBtnText}>Add Item Manually</Text>
+            <Text style={styles.addBtnText}>Add Item</Text>
           </Pressable>
         )}
       </View>
 
-      {/* Barcode scanner */}
+      {/* Barcode scanner (form field only) */}
       <BarcodeScannerModal
         visible={scannerVisible}
         onScanned={handleBarcodeScanned}
@@ -280,8 +260,8 @@ export function BrandProductsScreen({ route, navigation }: Props) {
                 <TextInput label="Purchase / Cost Price (₹)" mode="outlined" keyboardType="numeric" value={form.purchaseCost} onChangeText={(v) => setForm((c) => ({ ...c, purchaseCost: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
                 <TextInput label="Stock / Quantity available" mode="outlined" keyboardType="numeric" value={form.stock} onChangeText={(v) => setForm((c) => ({ ...c, stock: v }))} style={inputStyle} textColor={colors.text} theme={inputTheme} returnKeyType="next" />
                 <View style={styles.barcodeRow}>
-                  <TextInput label="Barcode" mode="outlined" value={form.barcode} onChangeText={(v) => setForm((c) => ({ ...c, barcode: v }))} style={[inputStyle, { flex: 1 }]} textColor={colors.text} theme={inputTheme} returnKeyType="done" />
-                  <Pressable style={styles.scanIconBtn} onPress={() => { setFormVisible(false); setScannerVisible(true); }}>
+                  <TextInput label="Barcode (optional)" mode="outlined" value={form.barcode} onChangeText={(v) => setForm((c) => ({ ...c, barcode: v }))} style={[inputStyle, { flex: 1 }]} textColor={colors.text} theme={inputTheme} returnKeyType="done" />
+                  <Pressable style={styles.scanIconBtn} onPress={() => setScannerVisible(true)}>
                     <MaterialCommunityIcons name="barcode-scan" size={22} color={colors.primary} />
                   </Pressable>
                 </View>
@@ -317,8 +297,6 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, color: '#888' },
   headerActionBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: colors.primary + '66', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary + '10' },
   headerActionBtnActive: { borderColor: colors.danger + '66', backgroundColor: colors.danger + '10' },
-  scanBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  scanBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   list: { padding: 16, gap: 0, paddingBottom: 100 },
   divider: { backgroundColor: '#F0F0F0', marginVertical: 2 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4 },
