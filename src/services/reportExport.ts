@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 
 import type { AttendanceRecord, DashboardMetrics, DateRange, InventoryItem, Sale, SaleItem, StaffMember } from '@/types';
-import type { CategoryProfitRow, ItemProfitRow } from '@/db/repository';
+import type { CategoryProfitRow, DailyExpenseGroup, DailySalesSummary, ItemProfitRow } from '@/db/repository';
 
 function escapeXml(value: string): string {
   return value
@@ -48,6 +48,8 @@ function buildWorkbook(
   attendance: AttendanceRecord[],
   itemProfitRows: ItemProfitRow[],
   categoryProfitRows: CategoryProfitRow[],
+  dailySales: DailySalesSummary[],
+  dailyExpenses: DailyExpenseGroup[],
 ): string {
   const totalRevenue = itemProfitRows.reduce((sum, row) => sum + row.revenue, 0);
   const totalCost = itemProfitRows.reduce((sum, row) => sum + row.cost, 0);
@@ -133,6 +135,23 @@ function buildWorkbook(
     `${row.margin}%`,
   ]);
 
+  const dailySalesRows = dailySales.map((d) => [
+    d.date,
+    d.transactions.toString(),
+    d.cashCount.toString(),
+    d.cashAmount.toFixed(2),
+    d.upiCount.toString(),
+    d.upiAmount.toFixed(2),
+    d.total.toFixed(2),
+  ]);
+
+  const dailyExpenseRows: string[][] = [];
+  for (const group of dailyExpenses) {
+    for (const exp of group.expenses) {
+      dailyExpenseRows.push([group.date, exp.description, exp.category, exp.amount.toFixed(2)]);
+    }
+  }
+
   return `<?xml version="1.0"?>
     <?mso-application progid="Excel.Sheet"?>
     <Workbook
@@ -143,6 +162,8 @@ function buildWorkbook(
       xmlns:html="http://www.w3.org/TR/REC-html40">
       ${worksheetXml('Summary', ['Metric', 'Value'], summaryRows)}
       ${worksheetXml('Sales', ['Bill No', 'Created At', 'Staff', 'Payment', 'Total', 'Items'], salesRows)}
+      ${worksheetXml('Daily Sales', ['Date', 'Transactions', 'Cash Count', 'Cash Amount', 'UPI Count', 'UPI Amount', 'Total'], dailySalesRows)}
+      ${worksheetXml('Daily Expenses', ['Date', 'Description', 'Category', 'Amount'], dailyExpenseRows)}
       ${worksheetXml('P&L By Item', ['Item', 'Category', 'Units Sold', 'Selling Price', 'Purchase Cost', 'Revenue', 'Cost', 'Profit/Loss', 'Margin %'], itemProfitDataRows)}
       ${worksheetXml('P&L By Category', ['Category', 'Units Sold', 'Revenue', 'Cost', 'Profit/Loss', 'Margin %'], categoryProfitDataRows)}
       ${worksheetXml('Inventory', ['Item', 'Type', 'Quantity', 'Unit', 'Low Stock Threshold', 'Barcode', 'Updated At'], inventoryRows)}
@@ -162,6 +183,8 @@ export async function exportReportsWorkbook(params: {
   attendance: AttendanceRecord[];
   itemProfitRows: ItemProfitRow[];
   categoryProfitRows: CategoryProfitRow[];
+  dailySales: DailySalesSummary[];
+  dailyExpenses: DailyExpenseGroup[];
 }): Promise<void> {
   const file = new File(Paths.cache, `mighty-cafe-drive-report-${params.range.startDate}-to-${params.range.endDate}.xls`);
   const workbookXml = buildWorkbook(
@@ -174,6 +197,8 @@ export async function exportReportsWorkbook(params: {
     params.attendance,
     params.itemProfitRows,
     params.categoryProfitRows,
+    params.dailySales,
+    params.dailyExpenses,
   );
 
   file.create({ intermediates: true, overwrite: true });

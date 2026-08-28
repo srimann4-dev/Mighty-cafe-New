@@ -12,7 +12,7 @@ import { ScreenShell } from '@/components/ScreenShell';
 import { SectionCard } from '@/components/SectionCard';
 import { usePrinterStore } from '@/store/usePrinterStore';
 import { scanBluetoothDevices, connectPrinter, disconnectPrinter } from '@/services/printBill';
-import { getAdminPin, setAdminPin } from '@/services/adminPin';
+import { getAdminPin, resetAdminPin, setAdminPin } from '@/services/adminPin';
 import { exportBackup, importBackup } from '@/services/backup';
 import {
   getLastSupabaseSync,
@@ -178,6 +178,27 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleResetAdminPin() {
+    Alert.alert(
+      'Reset Admin PIN?',
+      'This will reset the admin PIN back to the default (1234). Use this if you are locked out.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset to 1234',
+          style: 'destructive',
+          onPress: async () => {
+            await resetAdminPin();
+            setCurrentAdminPin('');
+            setNewAdminPin('');
+            setConfirmAdminPin('');
+            Alert.alert('PIN reset', 'Admin PIN has been reset to 1234.');
+          },
+        },
+      ],
+    );
+  }
+
   // ── Backup ──
   async function handleBackup() {
     setBackingUp(true);
@@ -282,6 +303,9 @@ export function SettingsScreen() {
         />
         <Button mode="contained" loading={savingAdminPin} onPress={handleChangeAdminPin} style={styles.actionBtn}>
           Save Admin PIN
+        </Button>
+        <Button mode="outlined" onPress={handleResetAdminPin} textColor={colors.danger} style={styles.actionBtn}>
+          Reset PIN to 1234 (if locked out)
         </Button>
       </SectionCard>
 

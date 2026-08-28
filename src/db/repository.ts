@@ -575,6 +575,86 @@ export async function findInventoryItemByBarcode(
   );
 }
 
+// ─── Daily Sales Summary ──────────────────────────────────────────────────────
+
+export interface DailySalesSummary {
+  date: string;
+  transactions: number;
+  cashCount: number;
+  cashAmount: number;
+  upiCount: number;
+  upiAmount: number;
+  total: number;
+}
+
+export async function getDailySalesSummary(
+  db: SQLiteDatabase,
+  startDate: string,
+  endDate: string,
+): Promise<DailySalesSummary[]> {
+  return db.getAllAsync<DailySalesSummary>(
+    `SELECT
+      substr(created_at, 1, 10) as date,
+      COUNT(*) as transactions,
+      SUM(CASE WHEN payment_method = 'Cash' THEN 1 ELSE 0 END) as cashCount,
+      COALESCE(SUM(CASE WHEN payment_method = 'Cash' THEN total ELSE 0 END), 0) as cashAmount,
+      SUM(CASE WHEN payment_method = 'UPI' THEN 1 ELSE 0 END) as upiCount,
+      COALESCE(SUM(CASE WHEN payment_method = 'UPI' THEN total ELSE 0 END), 0) as upiAmount,
+      COALESCE(SUM(total), 0) as total
+     FROM sales
+     WHERE substr(created_at, 1, 10) BETWEEN ? AND ?
+     GROUP BY substr(created_at, 1, 10)
+     ORDER BY date DESC`,
+    startDate,
+    endDate,
+  );
+}
+
+// ─── Daily Expenses ───────────────────────────────────────────────────────────
+
+export interface DailyExpenseGroup {
+  date: string;
+  expenses: Array<{ description: string; category: string; amount: number }>;
+  total: number;
+}
+
+export async function getDailyExpenses(
+  db: SQLiteDatabase,
+  startDate: string,
+  endDate: string,
+): Promise<DailyExpenseGroup[]> {
+  const rows = await db.getAllAsync<{
+    date: string;
+    description: string;
+    category: string;
+    amount: number;
+  }>(
+    `SELECT
+      substr(created_at, 1, 10) as date,
+      description,
+      category,
+      amount
+     FROM expenses
+     WHERE substr(created_at, 1, 10) BETWEEN ? AND ?
+     ORDER BY date DESC, created_at DESC`,
+    startDate,
+    endDate,
+  );
+
+  // Group by date
+  const map = new Map<string, DailyExpenseGroup>();
+  for (const row of rows) {
+    if (!map.has(row.date)) {
+      map.set(row.date, { date: row.date, expenses: [], total: 0 });
+    }
+    const group = map.get(row.date)!;
+    group.expenses.push({ description: row.description, category: row.category, amount: row.amount });
+    group.total += row.amount;
+  }
+
+  return Array.from(map.values());
+}
+
 export async function getExpenses(db: SQLiteDatabase, range?: Partial<DateRange>): Promise<Expense[]> {
   const startDate = range?.startDate ?? '0000-01-01';
   const endDate = range?.endDate ?? '9999-12-31';

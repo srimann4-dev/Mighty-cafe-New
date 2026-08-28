@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Dimensions, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Button, Chip, Divider, Modal, Portal, Surface, Text, TextInput } from 'react-native-paper';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -13,6 +13,8 @@ import { SectionCard } from '@/components/SectionCard';
 import {
   getAttendanceByRange,
   getCategoryProfitAnalysis,
+  getDailyExpenses,
+  getDailySalesSummary,
   getItemProfitAnalysis,
   getInventoryItems,
   getLast7DaysData,
@@ -21,6 +23,7 @@ import {
   resetDailyStats,
   resetAllData,
 } from '@/db/repository';
+import type { DailyExpenseGroup, DailySalesSummary } from '@/db/repository';
 import { useReports } from '@/hooks/useReports';
 import { exportReportsWorkbook } from '@/services/reportExport';
 import { formatCurrency } from '@/utils/currency';
@@ -69,6 +72,10 @@ export function ReportsScreen() {
     labels: [], revenue: [],
   });
   const [topItems, setTopItems] = useState<Array<{ name: string; quantity: number; revenue: number }>>([]);
+  const [dailySales, setDailySales] = useState<DailySalesSummary[]>([]);
+  const [dailyExpenses, setDailyExpenses] = useState<DailyExpenseGroup[]>([]);
+  const [dailySalesCollapsed, setDailySalesCollapsed] = useState(false);
+  const [dailyExpensesCollapsed, setDailyExpensesCollapsed] = useState(false);
 
   const loadCharts = useCallback(async () => {
     const [week, months, top] = await Promise.all([
@@ -89,28 +96,43 @@ export function ReportsScreen() {
     setTopItems(top);
   }, [db]);
 
+  const loadDailyData = useCallback(async (startDate: string, endDate: string) => {
+    const [ds, de] = await Promise.all([
+      getDailySalesSummary(db, startDate, endDate),
+      getDailyExpenses(db, startDate, endDate),
+    ]);
+    setDailySales(ds);
+    setDailyExpenses(de);
+  }, [db]);
+
   useFocusEffect(useCallback(() => {
     reload();
     loadCharts();
-  }, [reload, loadCharts]));
+    const today = getTodayIsoDate();
+    loadDailyData(offsetDateByDays(-6), today);
+  }, [reload, loadCharts, loadDailyData]));
 
   // Sync range picker to dateRange
   function handleRangeChange(key: RangeKey) {
     setActiveRange(key);
     const today = getTodayIsoDate();
     const offsets: Record<RangeKey, number> = { today: 0, week: -6, month: -29 };
-    setDateRange({ startDate: offsetDateByDays(offsets[key]), endDate: today });
+    const start = offsetDateByDays(offsets[key]);
+    setDateRange({ startDate: start, endDate: today });
+    loadDailyData(start, today);
   }
 
   async function handleExport() {
     try {
       setIsExporting(true);
-      const [inventory, staff, attendance, itemProfitRows, categoryProfitRows] = await Promise.all([
+      const [inventory, staff, attendance, itemProfitRows, categoryProfitRows, ds, de] = await Promise.all([
         getInventoryItems(db),
         import('@/db/repository').then((r) => r.getStaff(db)),
         getAttendanceByRange(db, dateRange.startDate, dateRange.endDate),
         getItemProfitAnalysis(db, dateRange.startDate, dateRange.endDate),
         getCategoryProfitAnalysis(db, dateRange.startDate, dateRange.endDate),
+        getDailySalesSummary(db, dateRange.startDate, dateRange.endDate),
+        getDailyExpenses(db, dateRange.startDate, dateRange.endDate),
       ]);
       await exportReportsWorkbook({
         range: dateRange,
@@ -122,6 +144,8 @@ export function ReportsScreen() {
         attendance,
         itemProfitRows,
         categoryProfitRows,
+        dailySales: ds,
+        dailyExpenses: de,
       });
     } catch (error) {
       Alert.alert('Export failed', error instanceof Error ? error.message : 'Unable to export.');
@@ -163,6 +187,12 @@ export function ReportsScreen() {
 
   const hasWeekData = weekData.revenue.length > 0;
   const hasMonthData = monthData.revenue.length > 0;
+
+  function formatReportDate(iso: string): string {
+    const [year, month, day] = iso.split('-').map(Number);
+    const d = new Date(year, month - 1, day);
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  }
 
   return (
     <ScreenShell
@@ -364,6 +394,114 @@ export function ReportsScreen() {
         </SectionCard>
       )}
 
+      {/* Daily Sales Summary */}
+      <SectionCard
+        title="Daily Sales Summary"
+        action={
+          <TouchableOpacity onPress={() => setDailySalesCollapsed((v) => !v)} style={styles.collapseBtn}>
+            <MaterialCommunityIcons
+              name={dailySalesCollapsed ? 'chevron-down' : 'chevron-up'}
+              size={20}
+              color={colors.muted}
+            />
+          </TouchableOpacity>
+        }
+      >
+        {!dailySalesCollapsed && (
+          dailySales.length === 0 ? (
+            <EmptyState title="No sales in this range" description="Try a wider date range." />
+          ) : (
+            <FlatList
+              data={dailySales}
+              keyExtractor={(item) => item.date}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              renderItem={({ item }) => (
+                <View style={styles.dayCard}>
+                  <View style={styles.dayCardHeader}>
+                    <View style={styles.dayIconBox}>
+                      <MaterialCommunityIcons name="calendar-today" size={16} color={colors.primary} />
+                    </View>
+                    <Text variant="titleSmall" style={styles.dayCardDate}>{formatReportDate(item.date)}</Text>
+                    <Text variant="titleSmall" style={styles.dayCardTotal}>{formatCurrency(item.total)}</Text>
+                  </View>
+                  <View style={styles.dayCardBody}>
+                    <View style={styles.dayCardRow}>
+                      <MaterialCommunityIcons name="cash" size={14} color={colors.primary} />
+                      <Text variant="bodySmall" style={styles.muted}>
+                        Cash: {item.cashCount} txn · {formatCurrency(item.cashAmount)}
+                      </Text>
+                    </View>
+                    <View style={styles.dayCardRow}>
+                      <MaterialCommunityIcons name="contactless-payment" size={14} color={colors.accent} />
+                      <Text variant="bodySmall" style={styles.muted}>
+                        UPI: {item.upiCount} txn · {formatCurrency(item.upiAmount)}
+                      </Text>
+                    </View>
+                    <View style={styles.dayCardRow}>
+                      <MaterialCommunityIcons name="receipt" size={14} color={colors.muted} />
+                      <Text variant="bodySmall" style={styles.muted}>
+                        Total transactions: {item.transactions}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            />
+          )
+        )}
+      </SectionCard>
+
+      {/* Daily Expenses */}
+      <SectionCard
+        title="Daily Expenses"
+        action={
+          <TouchableOpacity onPress={() => setDailyExpensesCollapsed((v) => !v)} style={styles.collapseBtn}>
+            <MaterialCommunityIcons
+              name={dailyExpensesCollapsed ? 'chevron-down' : 'chevron-up'}
+              size={20}
+              color={colors.muted}
+            />
+          </TouchableOpacity>
+        }
+      >
+        {!dailyExpensesCollapsed && (
+          dailyExpenses.length === 0 ? (
+            <EmptyState title="No expenses in this range" description="Try a wider date range." />
+          ) : (
+            <FlatList
+              data={dailyExpenses}
+              keyExtractor={(item) => item.date}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              renderItem={({ item }) => (
+                <View style={styles.dayCard}>
+                  <View style={styles.dayCardHeader}>
+                    <View style={[styles.dayIconBox, styles.expenseIconBox]}>
+                      <MaterialCommunityIcons name="calendar-today" size={16} color={colors.warning} />
+                    </View>
+                    <Text variant="titleSmall" style={styles.dayCardDate}>{formatReportDate(item.date)}</Text>
+                    <Text variant="titleSmall" style={styles.expenseTotal}>{formatCurrency(item.total)}</Text>
+                  </View>
+                  <View style={styles.dayCardBody}>
+                    {item.expenses.map((exp, i) => (
+                      <View key={i} style={styles.expenseRow}>
+                        <View style={styles.expenseDot} />
+                        <View style={styles.expenseInfo}>
+                          <Text variant="bodySmall" style={styles.topItemName}>{exp.description}</Text>
+                          <Text variant="bodySmall" style={styles.muted}>{exp.category}</Text>
+                        </View>
+                        <Text variant="bodySmall" style={styles.expenseAmount}>{formatCurrency(exp.amount)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            />
+          )
+        )}
+      </SectionCard>
+
       {/* Sales list */}
       <SectionCard title="Sales List">
         {sales.length === 0 ? (
@@ -548,6 +686,44 @@ const styles = StyleSheet.create({
   },
   lowQty: { color: colors.danger, fontWeight: '700' },
   muted: { color: colors.muted },
+  collapseBtn: { padding: 4 },
+  dayCard: {
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 12,
+    gap: 8,
+  },
+  dayCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: colors.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseIconBox: {
+    backgroundColor: colors.warning + '18',
+  },
+  dayCardDate: { flex: 1, color: colors.text },
+  dayCardTotal: { color: colors.primary, fontWeight: '700' },
+  expenseTotal: { color: colors.warning, fontWeight: '700' },
+  dayCardBody: { gap: 4, paddingLeft: 4 },
+  dayCardRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  expenseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  expenseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.warning,
+    marginLeft: 4,
+  },
+  expenseInfo: { flex: 1, gap: 1 },
+  expenseAmount: { color: colors.warning, fontWeight: '600' },
   modalOverlay: { flex: 1, justifyContent: 'flex-start', paddingTop: 48, paddingHorizontal: 16 },
   modalKav: { flex: 1 },
   modalScroll: { flexGrow: 1, paddingBottom: 240 },
